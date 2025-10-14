@@ -1,0 +1,23 @@
+name = "auspiland-app"
+main = "src/entry.py"
+compatibility_date = "2025-10-14"
+
+[assets]
+directory = "./assets"        # 정적 파일 루트
+
+# 필요 시 바인딩(선택):
+# [vars]             # 간단한 환경변수
+# API_KEY = "replace-me"
+#
+# [[kv_namespaces]]  # KV (요청 누적/제한, 캐시 등)
+# binding = "APP_KV"
+# id = "REPLACE_WITH_KV_ID"
+#
+# [[d1_databases]]   # D1 (SQL DB)
+# binding = "DB"
+# database_name = "edge-db"
+# database_id = "REPLACE_WITH_DB_ID"
+#
+# [[r2_buckets]]     # R2 (오브젝트 스토리지)
+# binding = "BUCKET"
+# bucket_name = "edge-bucket"
