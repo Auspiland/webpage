@@ -47,21 +47,18 @@ class Default(WorkerEntrypoint):
                 goal     = int(body.get("GOAL"))
                 obs_tot  = int(body.get("OBS_TOTAL"))
 
-                # CDF 캐싱 - 게임 ID별 키 사용
-                cdf_key = f"cdf_{game_id}"
-                cdf_str = await store.get(cdf_key)
-
-                if cdf_str:
-                    cdf = json.loads(cdf_str)
-                else:
+                cdf_total = json.loads(await store.get("cdf") or "{}")
+                cdf = cdf_total.get(game_id) if cdf_total else ""
+                if not cdf:
                     cdf = build_pity_cdf(game_id)
-                    await store.put(cdf_key, json.dumps(cdf))
+                    cdf_total[game_id] = cdf
+                    await store.put("cdf", json.dumps(cdf_total))
 
                 summary, svg = run_simulation(
-                    game_id=game_id, goal=goal, obs_total=obs_tot, cdf=cdf
+                    game_id=game_id, goal=goal, obs_total=obs_tot, cdf= cdf
                 )
-                print(f"[Request #{count}] game_id={game_id}, goal={goal}, obs_total={obs_tot}")
-                print(f"Summary: {summary.get('percentile_rank_of_obs_%', 'N/A')}")
+                print(summary)
+                print(svg)
             except Exception as e:
                 return Response.json({"ok": False, "error": str(e)}, status=400, headers=CORS)
 

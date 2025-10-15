@@ -344,11 +344,8 @@ def sample_total_draws(n_sims: int, base_episodes: int,
     Returns:
         각 시뮬레이션의 총 뽑기 횟수 리스트
     """
-    # 난수 생성기 초기화 (전역 상태 사용)
     random.seed(seed)
-
-    # Alias 테이블 전처리
-    prob, alias = _build_alias_from_cdf(cdf)
+    prob, alias = _build_alias_from_cdf(cdf)  # O(M) 1회 전처리
 
     totals: List[int] = [0] * n_sims
     for i in range(n_sims):
@@ -358,8 +355,6 @@ def sample_total_draws(n_sims: int, base_episodes: int,
         for _ in range(k):
             s += _alias_sample(prob, alias)   # 각 에피소드의 뽑기 수
         totals[i] = s
-
-    # 메모리 정리 (prob, alias는 로컬이므로 자동 해제됨)
     return totals
 
 # ---------- 요약 ----------
@@ -484,8 +479,4 @@ def run_simulation(
         "normal_fit_sigma_sample": float(sigma_ddof1),
         "ks_distance": float(ks),
     })
-
-    # 명시적으로 totals 참조 해제 (메모리 절약)
-    del totals
-
     return summary, svg
