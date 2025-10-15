@@ -102,6 +102,50 @@
     plotEl.classList.add("show");
   }
 
+  function getPercentileColor(percentile) {
+    if (percentile >= 95) return "#FFD700"; // 금색
+    if (percentile >= 90) return "#4169E1"; // 파란색
+    if (percentile >= 50) return "#32CD32"; // 초록색
+    if (percentile >= 10) return "#FF8C00"; // 주황색
+    return "#DC143C"; // 빨강색
+  }
+
+  function formatSummary(summary) {
+    if (!summary) return "ready";
+
+    // percentile_rank_of_obs_% 값 추출
+    const percentileKey = "percentile_rank_of_obs_%";
+    const percentile = summary[percentileKey];
+
+    // percentile을 제외한 나머지 항목들
+    const otherKeys = Object.keys(summary).filter(k => k !== percentileKey);
+
+    // HTML 생성
+    let html = '<div style="font-family: ui-monospace, monospace; line-height: 1.8;">';
+
+    // 1. 관측 상위비율을 가장 위에 표시 (색상 하이라이트)
+    if (percentile !== undefined) {
+      const color = getPercentileColor(percentile);
+      html += `<div style="margin-bottom: 12px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px;">`;
+      html += `<span style="color: #94a3b8;">${percentileKey}:</span> `;
+      html += `<span style="color: ${color}; font-weight: bold; font-size: 1.1em;">${percentile.toFixed(2)}</span>`;
+      html += `</div>`;
+    }
+
+    // 2. 나머지 항목들 표시
+    otherKeys.forEach(key => {
+      const value = summary[key];
+      const displayValue = typeof value === 'number' ? value.toFixed(4) : value;
+      html += `<div style="margin-bottom: 4px;">`;
+      html += `<span style="color: #94a3b8;">${key}:</span> `;
+      html += `<span style="color: #e5e7eb;">${displayValue}</span>`;
+      html += `</div>`;
+    });
+
+    html += '</div>';
+    return html;
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     enableDownloads(false);
@@ -117,7 +161,7 @@
       const data = await runSimulate(payload);
 
       lastSummary = data.summary || null;
-      summaryEl.textContent = JSON.stringify(lastSummary, null, 2);
+      summaryEl.innerHTML = formatSummary(lastSummary);
 
       if (data.image_svg) {
         lastSvgText = data.image_svg;
