@@ -457,7 +457,7 @@ def run_simulation(
 
     if not cdf:
         cdf = build_pity_cdf(game_id)
-
+    
     totals = sample_total_draws(
         n_sims=n_sims,
         base_episodes=goal,
@@ -465,8 +465,32 @@ def run_simulation(
         ceil_ratio=cfg["CEIL_RATIO"],
         seed=seed,
     )
-
-    # obs 관련 계산만 수행
     summary = summarize(totals, obs_total, n_sims)
+    title = f"Total draws distribution: GET {goal} (n={n_sims})"
+    (svg, mu, sigma_mle, sigma_ddof1,
+    normal_pdf_at_obs, hist_density_at_obs, bin_width) = make_hist_svg_with_normal(
+        totals, obs_total, bins=bins, title=title, fit=True, show_hist=show_hist
+    )
 
-    return summary, ""
+    # KS 거리
+    ks = _ks_distance_to_normal(totals, mu, sigma_mle)
+
+    # 이론 꼬리확률(%) = (1 - Φ((obs - mu)/sigma)) * 100
+    if sigma_mle > 0:
+        z = (obs_total - mu) / sigma_mle
+        theoretical_percentile = (1.0 - _normal_cdf(z)) * 100.0
+    else:
+        theoretical_percentile = float("nan")
+
+    summary.update({
+        "normal_fit_mu": float(mu),
+        "normal_fit_sigma_mle": float(sigma_mle),
+        "normal_fit_sigma_sample": float(sigma_ddof1),
+        "ks_distance": float(ks),
+        "normal_pdf_at_obs": float(normal_pdf_at_obs),
+        "hist_density_at_obs": float(hist_density_at_obs),
+        "hist_bin_width": float(bin_width),
+        "theoretical_percentile": float(theoretical_percentile),
+    })
+
+    return summary, svg
