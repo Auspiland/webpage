@@ -265,6 +265,32 @@ def build_pity_cdf(game_id) -> List[float]:
     return cdf
 
 # ---------- 난수/샘플 ----------
+# def _sample_T_from_cdf(cdf: List[float]) -> int:
+#     """cdf를 이용해 1..len(cdf) 범위의 T를 샘플링"""
+#     u = random.random()
+#     idx = bisect_left(cdf, u)
+#     return idx + 1  # 1-based 시도 횟수
+
+# def _binomial_7(p: float) -> int:
+#     """n=7, p의 이항 샘플(순수 파이썬)"""
+#     cnt = 0
+#     for _ in range(7):
+#         if random.random() < p:
+#             cnt += 1
+#     return cnt
+
+# def sample_total_draws(n_sims: int, base_episodes: int, cdf: List[float], ceil_ratio: float, seed: int) -> List[int]:
+#     """에피소드 수가 동적으로 늘어나는 구조를 반영해 각 시뮬레이션 총 뽑기수 리스트 반환."""
+#     random.seed(seed)
+#     totals: List[int] = [0] * n_sims
+#     for i in range(n_sims):
+#         add_ep = _binomial_7(ceil_ratio)   # 7번의 50% 시도 중 성공 수
+#         k = base_episodes + add_ep         # 실제 episode 수
+#         s = 0
+#         for _ in range(k):
+#             s += _sample_T_from_cdf(cdf)
+#         totals[i] = s
+#     return totals
 
 def _build_alias_from_cdf(cdf: List[float]) -> Tuple[List[float], List[int]]:
     """Walker's Alias Method를 위한 전처리 테이블 생성
@@ -412,7 +438,7 @@ def run_simulation(
     goal: int,
     obs_total: int,
     n_sims: int = N_SIMS,
-    seed: int = None,  # None이면 자동 생성
+    seed: int = SEED,
     bins: int = BINS,
     cdf: dict = {}
 ) -> Tuple[Dict, str]:
@@ -423,7 +449,7 @@ def run_simulation(
         goal: 목표 획득 수
         obs_total: 관측된 총 뽑기 횟수
         n_sims: 시뮬레이션 횟수
-        seed: 난수 시드 (None이면 시간 기반 자동 생성)
+        seed: 난수 시드
         bins: 히스토그램 bins (실제로는 내부에서 재계산됨)
         cdf: 사전 계산된 CDF (선택적)
 
@@ -447,11 +473,6 @@ def run_simulation(
     if n_sims <= 0:
         raise ValueError(f"n_sims must be positive, got {n_sims}")
 
-    # seed가 None이면 각 호출마다 다른 시드 생성
-    if seed is None:
-        import time
-        seed = (int(time.time() * 1000000) ^ hash((game_id, goal, obs_total))) % (2**31)
-
     if not cdf:
         cdf = build_pity_cdf(game_id)
     
@@ -464,7 +485,7 @@ def run_simulation(
     )
     # bins 계산: goal에 비례한 히스토그램 해상도 설정
     # 공식: goal * 160 / 3 (goal이 클수록 더 세밀한 bins)
-    bins = (goal * 170) // 3
+    bins = (goal * 160) // 3
 
     summary = summarize(totals, obs_total, n_sims)
     title = f"Total draws distribution: GET {goal} (n={n_sims})"
