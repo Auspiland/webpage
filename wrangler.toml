@@ -1,4 +1,4 @@
-name = "auspiland-app"
+name = "auspiland-test"
 main = "src/entry.py"
 compatibility_date = "2025-10-14"
 
