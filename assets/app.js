@@ -19,11 +19,8 @@
     const fd = new FormData(f);
     const obj = {};
     for (const [k, v] of fd.entries()) obj[k] = v;
-    // 숫자 변환
     ["GAME_ID","GOAL","OBS_TOTAL","N_SIMS","BINS","SEED"].forEach((k) => {
-      if (obj[k] !== undefined && obj[k] !== "") {
-        obj[k] = Number(obj[k]);
-      }
+      if (obj[k] !== undefined && obj[k] !== "") obj[k] = Number(obj[k]);
     });
     return obj;
   }
@@ -32,7 +29,6 @@
     const limit = res.headers.get("X-RateLimit-Limit");
     const remain = res.headers.get("X-RateLimit-Remaining");
     const reset = res.headers.get("X-RateLimit-Reset");
-
     if (limit || remain || reset) {
       rateMeta.style.display = "flex";
       rlLimit.textContent = `Limit: ${limit ?? "-"}`;
@@ -53,21 +49,48 @@
   async function runSimulate(payload) {
     const res = await fetch("/api/simulate", {
       method: "POST",
-      headers: { "content-type": "application/json", "accept": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "accept": "application/json"
+      },
       body: JSON.stringify(payload),
     });
+
     showRateLimitHeaders(res);
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      const msg = data?.error || `HTTP ${res.status}`;
+
+    // Content-Type이 JSON이 아니면 HTML/텍스트를 그대로 미리보기로 에러 표시
+    const ctype = (res.headers.get("content-type") || "").toLowerCase();
+    if (!ctype.includes("application/json")) {
+      const preview = await res.text().catch(() => "");
+      const head = preview.slice(0, 300).replace(/\s+/g, " ").trim();
+      throw new Error(
+        `Non-JSON response (status ${res.status})\n` +
+        `Content-Type: ${ctype || "-"}\n` +
+        `Preview: ${head || "<empty>"}` +
+        `\n(라우팅/핸들러 확인: /api/simulate가 정적 에셋으로 가지 않도록)`
+      );
+    }
+
+    // JSON 파싱
+    let data;
+    try {
+      data = await res.json();
+    } catch (e) {
+      throw new Error(`JSON parse error (status ${res.status}): ${String(e)}`);
+    }
+
+    if (!res.ok || !data?.ok) {
+      const msg = (data && (data.error || data.message)) || `HTTP ${res.status}`;
       throw new Error(msg);
     }
+
     return data;
   }
 
   function setPlotFromSvg(svgText) {
-    // Blob URL로 표시
-    const url = URL.createObjectURL(new Blob([svgText], { type: "image/svg+xml;charset=utf-8" }));
+    const url = URL.createObjectURL(
+      new Blob([svgText], { type: "image/svg+xml;charset=utf-8" })
+    );
     plotEl.src = url;
     plotEl.classList.add("show");
   }
@@ -85,11 +108,10 @@
 
     try {
       const data = await runSimulate(payload);
-      // 요약 출력
-      lastSummary = data.summary || null;
-      summaryEl.textContent = JSON.stringify(data.summary, null, 2);
 
-      // SVG 표시
+      lastSummary = data.summary || null;
+      summaryEl.textContent = JSON.stringify(lastSummary, null, 2);
+
       if (data.image_svg) {
         lastSvgText = data.image_svg;
         setPlotFromSvg(lastSvgText);
@@ -113,15 +135,13 @@
     enableDownloads(false);
   });
 
-  // 다운로드: SVG
   btnDlSvg.addEventListener("click", () => {
     if (!lastSvgText) return;
     const blob = new Blob([lastSvgText], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const now = new Date();
-    const ts = now.toISOString().replace(/[:.]/g, "-");
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
     a.download = `distribution-${ts}.svg`;
     document.body.appendChild(a);
     a.click();
@@ -129,14 +149,15 @@
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   });
 
-  // 다운로드: JSON (summary)
   btnDlJson.addEventListener("click", () => {
     if (!lastSummary) return;
-    const blob = new Blob([JSON.stringify(lastSummary, null, 2)], { type: "application/json;charset=utf-8" });
+    const blob = new Blob(
+      [JSON.stringify(lastSummary, null, 2)],
+      { type: "application/json;charset=utf-8" }
+    );
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const now = new Date();
-    const ts = now.toISOString().replace(/[:.]/g, "-");
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
     a.href = url;
     a.download = `summary-${ts}.json`;
     document.body.appendChild(a);
