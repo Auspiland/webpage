@@ -52,17 +52,17 @@ class Default(WorkerEntrypoint):
                 obs_tot  = int(body.get("OBS_TOTAL"))
 
                 # CDF 캐싱 - 게임 ID별 키 사용
-                # cdf_key = f"cdf_{game_id}"
-                # cdf_str = await store.get(cdf_key)
+                cdf_key = f"cdf_{game_id}"
+                cdf_str = await store.get(cdf_key)
 
-                # if cdf_str:
-                #     cdf = json.loads(cdf_str)
-                # else:
-                #     cdf = build_pity_cdf(game_id)
-                #     await store.put(cdf_key, json.dumps(cdf))
+                if cdf_str:
+                    cdf = json.loads(cdf_str)
+                else:
+                    cdf = build_pity_cdf(game_id)
+                    await store.put(cdf_key, json.dumps(cdf))
 
                 summary, svg = run_simulation(
-                    game_id=game_id, goal=goal, obs_total=obs_tot
+                    game_id=game_id, goal=goal, obs_total=obs_tot, cdf=cdf
                 )
                 print(f"[Request #{count}] game_id={game_id}, goal={goal}, obs_total={obs_tot}")
                 print(f"Summary: {summary.get('percentile_rank_of_obs_%', 'N/A')}")
