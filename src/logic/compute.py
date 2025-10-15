@@ -18,13 +18,10 @@ BINS = 300
 # ----- fitting ------
 from math import sqrt, pi, exp
 
-# 통계 함수 (중복 정의 제거 - 여기서만 정의)
-def _mean(xs):
-    """평균 계산"""
+def _mean(xs):  # 기존 정의 있어도 동일
     return (sum(xs) / len(xs)) if xs else float("nan")
 
-def _std_mle(xs):
-    """MLE 표준편차(ddof=0) – 정규 최우추정치"""
+def _std_mle(xs):  # MLE 표준편차(ddof=0) – 정규 최우추정치
     n = len(xs)
     if n <= 1:
         return 0.0
@@ -32,8 +29,7 @@ def _std_mle(xs):
     var = sum((x - mu) ** 2 for x in xs) / n
     return var ** 0.5
 
-def _std_ddof1(xs):
-    """표본 표준편차(ddof=1) – 불편 추정량"""
+def _std_ddof1(xs):  # 이미 있으시면 이건 유지
     n = len(xs)
     if n <= 1:
         return 0.0
@@ -42,20 +38,14 @@ def _std_ddof1(xs):
     return var ** 0.5
 
 def _normal_pdf(x, mu, sigma):
-    """정규분포 확률밀도함수 (PDF)"""
     if sigma <= 0:
         return 0.0
     z = (x - mu) / sigma
     return (1.0 / (sigma * sqrt(2.0 * pi))) * exp(-0.5 * z * z)
 
 def _ecdf(xs_sorted, x):
-    """경험적 누적 분포 함수: P(X ≤ x)
-
-    xs_sorted: 정렬된 데이터 리스트
-    x: 평가할 값
-    반환: 0~1 사이의 확률
-    """
-    # bisect_right와 동일한 로직 (순수 파이썬 구현 유지)
+    # 간단한 ECDF: P(X ≤ x)
+    # xs_sorted는 사전 정렬 리스트
     lo, hi = 0, len(xs_sorted)
     while lo < hi:
         mid = (lo + hi) // 2
@@ -66,17 +56,7 @@ def _ecdf(xs_sorted, x):
     return lo / len(xs_sorted)
 
 def _ks_distance_to_normal(xs, mu, sigma, grid=200):
-    """Kolmogorov-Smirnov 통계량: 데이터와 정규분포 간의 최대 차이
-
-    Args:
-        xs: 데이터 리스트
-        mu: 정규분포 평균
-        sigma: 정규분포 표준편차
-        grid: 평가할 격자점 개수
-
-    Returns:
-        KS 거리 (0~1), 값이 작을수록 정규분포에 가까움
-    """
+    # Kolmogorov–Smirnov D (간이): 균등 격자에서 sup|F_n - Φ|
     if not xs or sigma <= 0:
         return 1.0
     ys = sorted(xs)
@@ -84,10 +64,10 @@ def _ks_distance_to_normal(xs, mu, sigma, grid=200):
     if xmax == xmin:  # 단일값 보호
         xmax += 1.0
         xmin -= 1.0
-
-    # 표준 정규 CDF 근사 (Hastings 1955)
+    # 표준 정규 CDF 근사(에러펑션 없이 폴딩 근사): 빠른 Remez 계열 근사 사용
+    # Hastings(1955) 근사에 기반한 간략 버전
     def phi(z):
-        """표준 정규분포의 누적분포함수 Φ(z)"""
+        # Φ(z)
         t = 1.0 / (1.0 + 0.2316419 * abs(z))
         b = ((((1.330274429 * t - 1.821255978) * t + 1.781477937) * t - 0.356563782) * t + 0.319381530) * t
         nd = (1.0 / sqrt(2.0 * pi)) * exp(-0.5 * z * z)
@@ -101,23 +81,10 @@ def _ks_distance_to_normal(xs, mu, sigma, grid=200):
         z = (x - mu) / sigma
         F = phi(z)
         d = abs(Fn - F)
-        if d > D:
-            D = d
+        if d > D: D = d
     return D
 
 def make_hist_svg_with_normal(totals, obs_total, bins=128, title="", fit=True):
-    """히스토그램과 정규분포 적합을 SVG로 생성
-
-    Args:
-        totals: 시뮬레이션 데이터 리스트
-        obs_total: 관측된 값 (빨간 수직선 표시)
-        bins: 히스토그램 구간 수
-        title: 차트 제목
-        fit: 정규분포 곡선 표시 여부
-
-    Returns:
-        (svg_string, mu, sigma_mle, sigma_ddof1)
-    """
     if not totals:
         return '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450"></svg>'
 
@@ -293,16 +260,6 @@ def build_pity_cdf(game_id) -> List[float]:
 #     return totals
 
 def _build_alias_from_cdf(cdf: List[float]) -> Tuple[List[float], List[int]]:
-    """Walker's Alias Method를 위한 전처리 테이블 생성
-
-    CDF에서 PMF를 추출하고 O(1) 샘플링을 위한 alias 테이블 구성
-
-    Args:
-        cdf: 누적분포함수 (정규화되지 않아도 됨)
-
-    Returns:
-        (prob, alias): Alias Method용 확률 테이블과 별칭 테이블
-    """
     pmf = []
     prev = 0.0
     for x in cdf:
@@ -310,7 +267,7 @@ def _build_alias_from_cdf(cdf: List[float]) -> Tuple[List[float], List[int]]:
         prev = x
     s = sum(pmf)
     if s <= 0:
-        raise ValueError("Invalid CDF: sum must be positive")
+        raise ValueError("Invalid CDF")
     pmf = [p / s for p in pmf]
 
     M = len(pmf)
@@ -332,24 +289,13 @@ def _build_alias_from_cdf(cdf: List[float]) -> Tuple[List[float], List[int]]:
         prob[i] = 1.0
     return prob, alias
 
+# --- Alias 샘플링 (O(1)) : 1..M 반환 ---
 def _alias_sample(prob: List[float], alias: List[int]) -> int:
-    """Alias Method를 이용한 O(1) 샘플링
-
-    Returns:
-        1부터 len(prob)까지의 정수 (1-indexed)
-    """
-    i = int(random.random() * len(prob))
+    i = int(random.random() * len(prob))   # 0..M-1
     return (i + 1) if random.random() < prob[i] else (alias[i] + 1)
 
+# --- Binomial(7,p) : 상수 비용 ---
 def _binomial_7(p: float) -> int:
-    """이항분포 B(7, p) 샘플링
-
-    Args:
-        p: 성공 확률
-
-    Returns:
-        0~7 사이의 성공 횟수
-    """
     c = 0
     for _ in range(7):
         if random.random() < p:
@@ -358,43 +304,42 @@ def _binomial_7(p: float) -> int:
 
 def sample_total_draws(n_sims: int, base_episodes: int,
                        cdf: List[float], ceil_ratio: float, seed: int) -> List[int]:
-    """몬테카를로 시뮬레이션: 총 뽑기 횟수 분포 생성
-
-    Args:
-        n_sims: 시뮬레이션 반복 횟수
-        base_episodes: 기본 에피소드 수
-        cdf: 단일 에피소드의 CDF
-        ceil_ratio: 추가 에피소드 발생 확률
-        seed: 난수 시드
-
-    Returns:
-        각 시뮬레이션의 총 뽑기 횟수 리스트
-    """
     random.seed(seed)
     prob, alias = _build_alias_from_cdf(cdf)  # O(M) 1회 전처리
 
     totals: List[int] = [0] * n_sims
     for i in range(n_sims):
-        add_ep = _binomial_7(ceil_ratio)      # 추가 에피소드 수
-        k = base_episodes + add_ep            # 총 에피소드 수
+        add_ep = _binomial_7(ceil_ratio)      # O(1)
+        k = base_episodes + add_ep
         s = 0
-        for _ in range(k):
-            s += _alias_sample(prob, alias)   # 각 에피소드의 뽑기 수
+        for _ in range(k):                    # 각 샘플 O(1)
+            s += _alias_sample(prob, alias)
         totals[i] = s
     return totals
 
 # ---------- 요약 ----------
+def _mean(xs: List[int]) -> float:
+    return (sum(xs) / len(xs)) if xs else float("nan")
+
+def _median(xs: List[int]) -> float:
+    n = len(xs)
+    if n == 0:
+        return float("nan")
+    ys = sorted(xs)
+    mid = n // 2
+    if n % 2 == 1:
+        return float(ys[mid])
+    return (ys[mid - 1] + ys[mid]) / 2.0
+
+def _std_ddof1(xs: List[int]) -> float:
+    n = len(xs)
+    if n <= 1:
+        return 0.0
+    mu = _mean(xs)
+    var = sum((x - mu) ** 2 for x in xs) / (n - 1)
+    return var ** 0.5
+
 def summarize(totals: List[int], obs_total: int, n_sims: int) -> Dict:
-    """시뮬레이션 결과 통계 요약
-
-    Args:
-        totals: 시뮬레이션 데이터 리스트
-        obs_total: 관측된 총 뽑기 횟수
-        n_sims: 시뮬레이션 횟수
-
-    Returns:
-        통계 요약 딕셔너리
-    """
     n = len(totals)
     if n == 0:
         return {
@@ -437,41 +382,19 @@ def run_simulation(
     game_id: int,
     goal: int,
     obs_total: int,
-    n_sims: int = N_SIMS,
+    n_sims: int = N_SIMS,   # 순수 파이썬이라 기본값을 낮춤(필요시 조정)
     seed: int = SEED,
     bins: int = BINS,
     cdf: dict = {}
 ) -> Tuple[Dict, str]:
-    """시뮬레이션 실행 및 통계 분석
+    
+    # resp = {"Test key":"Test value"}
+    # svg = '<svg></svg>'
+    # return resp, svg
 
-    Args:
-        game_id: 게임 ID (1 또는 2)
-        goal: 목표 획득 수
-        obs_total: 관측된 총 뽑기 횟수
-        n_sims: 시뮬레이션 횟수
-        seed: 난수 시드
-        bins: 히스토그램 bins (실제로는 내부에서 재계산됨)
-        cdf: 사전 계산된 CDF (선택적)
-
-    Returns:
-        (summary_dict, svg_string): 통계 요약과 SVG 히스토그램
-
-    Raises:
-        ValueError: 잘못된 입력값
-    """
-    # 입력 검증
     cfg = GAME_TABLE.get(game_id)
     if not cfg:
         raise ValueError(f"Unknown GAME_ID: {game_id}")
-
-    if goal <= 0:
-        raise ValueError(f"goal must be positive, got {goal}")
-
-    if obs_total < 0:
-        raise ValueError(f"obs_total must be non-negative, got {obs_total}")
-
-    if n_sims <= 0:
-        raise ValueError(f"n_sims must be positive, got {n_sims}")
 
     if not cdf:
         cdf = build_pity_cdf(game_id)
@@ -483,10 +406,6 @@ def run_simulation(
         ceil_ratio=cfg["CEIL_RATIO"],
         seed=seed,
     )
-    # bins 계산: goal에 비례한 히스토그램 해상도 설정
-    # 공식: goal * 160 / 3 (goal이 클수록 더 세밀한 bins)
-    bins = (goal * 160) // 3
-
     summary = summarize(totals, obs_total, n_sims)
     title = f"Total draws distribution: GET {goal} (n={n_sims})"
     svg, mu, sigma_mle, sigma_ddof1 = make_hist_svg_with_normal(
