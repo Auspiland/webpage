@@ -10,7 +10,7 @@ GAME_TABLE = {
     2: dict(CEIL_RATIO=0.55, MAX_T=90, BASE_P=0.006, ACCEL_START=73, ACCEL_STEP=0.06),
 }
 
-N_SIMS = 100_000
+N_SIMS = 50_000  # 메모리 부담 감소 (100k → 50k)
 SEED = 31014646
 BINS = 300
 
@@ -65,14 +65,14 @@ def _ecdf(xs_sorted, x):
             hi = mid
     return lo / len(xs_sorted)
 
-def _ks_distance_to_normal(xs, mu, sigma, grid=200):
+def _ks_distance_to_normal(xs, mu, sigma, grid=100):
     """Kolmogorov-Smirnov 통계량: 데이터와 정규분포 간의 최대 차이
 
     Args:
         xs: 데이터 리스트
         mu: 정규분포 평균
         sigma: 정규분포 표준편차
-        grid: 평가할 격자점 개수
+        grid: 평가할 격자점 개수 (기본값 100으로 축소)
 
     Returns:
         KS 거리 (0~1), 값이 작을수록 정규분포에 가까움
