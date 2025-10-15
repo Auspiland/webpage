@@ -12,6 +12,12 @@ CORS = {
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
+        # 서버 변수
+        store = self.env.GLOBAL_STORE
+        count = int(await store.get("count") or "0")
+        count += 1
+        await store.put("count", str(count))
+
         # CORS 프리플라이트
         if request.method == "OPTIONS":
             return Response("", headers=CORS)
@@ -27,7 +33,7 @@ class Default(WorkerEntrypoint):
         # body: { "GAME_ID": 1, "GOAL": 7, "OBS_TOTAL": 888, "N_SIMS"?: int, "SEED"?: int, "BINS"?: int }
         if path == "/api/simulate" and request.method == "POST":
             try:
-                from logic.compute import run_simulation
+                from logic.compute import run_simulation, build_pity_cdf
             except Exception as e:
                 return Response.json({"ok": False, "error": f"import failed: {e}"}, status=500, headers=CORS)
             
@@ -40,17 +46,19 @@ class Default(WorkerEntrypoint):
                 game_id  = int(body.get("GAME_ID"))
                 goal     = int(body.get("GOAL"))
                 obs_tot  = int(body.get("OBS_TOTAL"))
-                n_sims   = int(body.get("N_SIMS", 500_000))
-                seed     = int(body.get("SEED", 20251014))
-                bins     = int(body.get("BINS", 128))
 
-                # 안전 상한 (Python Workers CPU/벽시계 시간 고려)
-                n_sims = max(10_000, min(n_sims, 2_000_000))
+                cdf_total = await store.get("cdf") or {}
+                cdf = cdf_total.get(game_id) if cdf_total else {}
+                if not cdf:
+                    cdf = build_pity_cdf(game_id)
+                    cdf_total[game_id] = cdf
+                    await store.put("cdf", cdf_total)
 
                 summary, svg = run_simulation(
-                    game_id=game_id, goal=goal, obs_total=obs_tot,
-                    n_sims=n_sims, seed=seed, bins=bins
+                    game_id=game_id, goal=goal, obs_total=obs_tot, cdf= cdf
                 )
+                print(summary)
+                print(svg)
             except Exception as e:
                 return Response.json({"ok": False, "error": str(e)}, status=400, headers=CORS)
 

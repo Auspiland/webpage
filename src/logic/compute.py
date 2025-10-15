@@ -10,6 +10,11 @@ GAME_TABLE = {
     2: dict(CEIL_RATIO=0.55, MAX_T=90, BASE_P=0.006, ACCEL_START=73, ACCEL_STEP=0.06),
 }
 
+N_SIMS= 100_000,
+SEED= 31014646,
+BINS = 300
+
+
 # ----- fitting ------
 from math import sqrt, pi, exp
 
@@ -187,8 +192,14 @@ def make_hist_svg_with_normal(totals, obs_total, bins=128, title="", fit=True):
 
 
 # ---------- CDF 구성 ----------
-def build_pity_cdf(max_t: int, base_p: float, accel_start: int, accel_step: float) -> List[float]:
+def build_pity_cdf(game_id) -> List[float]:
     """최초 성공까지 걸리는 시도수 T(1..max_t)의 CDF (list[float])"""
+    cfg = GAME_TABLE.get(game_id)
+    max_t=cfg["MAX_T"],
+    base_p=cfg["BASE_P"],
+    accel_start=cfg["ACCEL_START"],
+    accel_step=cfg["ACCEL_STEP"]
+
     # p[t-1] = 각 시도에서의 성공 확률
     p = [0.0] * max_t
     for t in range(1, max_t + 1):
@@ -221,30 +232,88 @@ def build_pity_cdf(max_t: int, base_p: float, accel_start: int, accel_step: floa
     return cdf
 
 # ---------- 난수/샘플 ----------
-def _sample_T_from_cdf(cdf: List[float]) -> int:
-    """cdf를 이용해 1..len(cdf) 범위의 T를 샘플링"""
-    u = random.random()
-    idx = bisect_left(cdf, u)
-    return idx + 1  # 1-based 시도 횟수
+# def _sample_T_from_cdf(cdf: List[float]) -> int:
+#     """cdf를 이용해 1..len(cdf) 범위의 T를 샘플링"""
+#     u = random.random()
+#     idx = bisect_left(cdf, u)
+#     return idx + 1  # 1-based 시도 횟수
 
+# def _binomial_7(p: float) -> int:
+#     """n=7, p의 이항 샘플(순수 파이썬)"""
+#     cnt = 0
+#     for _ in range(7):
+#         if random.random() < p:
+#             cnt += 1
+#     return cnt
+
+# def sample_total_draws(n_sims: int, base_episodes: int, cdf: List[float], ceil_ratio: float, seed: int) -> List[int]:
+#     """에피소드 수가 동적으로 늘어나는 구조를 반영해 각 시뮬레이션 총 뽑기수 리스트 반환."""
+#     random.seed(seed)
+#     totals: List[int] = [0] * n_sims
+#     for i in range(n_sims):
+#         add_ep = _binomial_7(ceil_ratio)   # 7번의 50% 시도 중 성공 수
+#         k = base_episodes + add_ep         # 실제 episode 수
+#         s = 0
+#         for _ in range(k):
+#             s += _sample_T_from_cdf(cdf)
+#         totals[i] = s
+#     return totals
+
+def _build_alias_from_cdf(cdf: List[float]) -> Tuple[List[float], List[int]]:
+    pmf = []
+    prev = 0.0
+    for x in cdf:
+        pmf.append(x - prev)
+        prev = x
+    s = sum(pmf)
+    if s <= 0:
+        raise ValueError("Invalid CDF")
+    pmf = [p / s for p in pmf]
+
+    M = len(pmf)
+    scaled = [p * M for p in pmf]
+    small, large = [], []
+    for i, v in enumerate(scaled):
+        (small if v < 1.0 else large).append(i)
+
+    prob = [0.0] * M
+    alias = [0] * M
+    while small and large:
+        s_i = small.pop()
+        l_i = large.pop()
+        prob[s_i] = scaled[s_i]
+        alias[s_i] = l_i
+        scaled[l_i] = scaled[l_i] + scaled[s_i] - 1.0
+        (small if scaled[l_i] < 1.0 else large).append(l_i)
+    for i in large + small:
+        prob[i] = 1.0
+    return prob, alias
+
+# --- Alias 샘플링 (O(1)) : 1..M 반환 ---
+def _alias_sample(prob: List[float], alias: List[int]) -> int:
+    i = int(random.random() * len(prob))   # 0..M-1
+    return (i + 1) if random.random() < prob[i] else (alias[i] + 1)
+
+# --- Binomial(7,p) : 상수 비용 ---
 def _binomial_7(p: float) -> int:
-    """n=7, p의 이항 샘플(순수 파이썬)"""
-    cnt = 0
+    c = 0
     for _ in range(7):
         if random.random() < p:
-            cnt += 1
-    return cnt
+            c += 1
+    return c
 
-def sample_total_draws(n_sims: int, base_episodes: int, cdf: List[float], ceil_ratio: float, seed: int) -> List[int]:
-    """에피소드 수가 동적으로 늘어나는 구조를 반영해 각 시뮬레이션 총 뽑기수 리스트 반환."""
+def sample_total_draws(n_sims: int, base_episodes: int,
+                       cdf: List[float], ceil_ratio: float, seed: int) -> List[int]:
     random.seed(seed)
+    prob, alias = _build_alias_from_cdf(cdf)  # O(M) 1회 전처리
+
     totals: List[int] = [0] * n_sims
     for i in range(n_sims):
-        add_ep = _binomial_7(ceil_ratio)   # 7번의 50% 시도 중 성공 수
-        k = base_episodes + add_ep         # 실제 episode 수
+        add_ep = _binomial_7(ceil_ratio)      # O(1)
+        k = base_episodes + add_ep
         s = 0
-        for _ in range(k):
-            s += _sample_T_from_cdf(cdf)
+        for _ in range(k):                    # 각 샘플 O(1)
+            s += _alias_sample(prob, alias)
         totals[i] = s
     return totals
 
@@ -288,25 +357,23 @@ def run_simulation(
     game_id: int,
     goal: int,
     obs_total: int,
-    n_sims: int = 1_000_000,   # 순수 파이썬이라 기본값을 낮춤(필요시 조정)
-    seed: int = 20251014,
-    bins: int = 890,
+    n_sims: int = N_SIMS,   # 순수 파이썬이라 기본값을 낮춤(필요시 조정)
+    seed: int = SEED,
+    bins: int = BINS,
+    cdf: dict = {}
 ) -> Tuple[Dict, str]:
     
-    resp = {"Test key":"Test value"}
-    svg = '<svg></svg>'
-    return resp, svg
+    # resp = {"Test key":"Test value"}
+    # svg = '<svg></svg>'
+    # return resp, svg
 
     cfg = GAME_TABLE.get(game_id)
     if not cfg:
         raise ValueError(f"Unknown GAME_ID: {game_id}")
 
-    cdf = build_pity_cdf(
-        max_t=cfg["MAX_T"],
-        base_p=cfg["BASE_P"],
-        accel_start=cfg["ACCEL_START"],
-        accel_step=cfg["ACCEL_STEP"],
-    )
+    if not cdf:
+        cdf = build_pity_cdf(game_id)
+    
     totals = sample_total_draws(
         n_sims=n_sims,
         base_episodes=goal,

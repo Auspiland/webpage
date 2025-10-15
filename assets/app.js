@@ -19,7 +19,7 @@
     const fd = new FormData(f);
     const obj = {};
     for (const [k, v] of fd.entries()) obj[k] = v;
-    ["GAME_ID","GOAL","OBS_TOTAL","N_SIMS","BINS","SEED"].forEach((k) => {
+    ["GAME_ID","GOAL","OBS_TOTAL"].forEach((k) => {
       if (obj[k] !== undefined && obj[k] !== "") obj[k] = Number(obj[k]);
     });
     return obj;
