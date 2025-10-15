@@ -10,7 +10,7 @@ GAME_TABLE = {
     2: dict(CEIL_RATIO=0.55, MAX_T=90, BASE_P=0.006, ACCEL_START=73, ACCEL_STEP=0.06),
 }
 
-N_SIMS = 100_000  # bisect_left 사용으로 충분히 빠름
+N_SIMS = 100_000  # Cloudflare Workers 메모리 제한 고려
 SEED = 31014646
 BINS = 300
 
@@ -153,18 +153,54 @@ def build_pity_cdf(game_id) -> List[float]:
 
 # ---------- 난수/샘플 ----------
 
-def _sample_T_from_cdf(cdf: List[float]) -> int:
-    """CDF를 이용한 O(log n) 이진 탐색 샘플링
+def _build_alias_from_cdf(cdf: List[float]) -> Tuple[List[float], List[int]]:
+    """Walker's Alias Method를 위한 전처리 테이블 생성
+
+    CDF에서 PMF를 추출하고 O(1) 샘플링을 위한 alias 테이블 구성
 
     Args:
-        cdf: 누적분포함수
+        cdf: 누적분포함수 (정규화되지 않아도 됨)
 
     Returns:
-        1부터 len(cdf)까지의 정수 (1-indexed)
+        (prob, alias): Alias Method용 확률 테이블과 별칭 테이블
     """
-    u = random.random()
-    idx = bisect_left(cdf, u)
-    return idx + 1
+    pmf = []
+    prev = 0.0
+    for x in cdf:
+        pmf.append(x - prev)
+        prev = x
+    s = sum(pmf)
+    if s <= 0:
+        raise ValueError("Invalid CDF: sum must be positive")
+    pmf = [p / s for p in pmf]
+
+    M = len(pmf)
+    scaled = [p * M for p in pmf]
+    small, large = [], []
+    for i, v in enumerate(scaled):
+        (small if v < 1.0 else large).append(i)
+
+    prob = [0.0] * M
+    alias = [0] * M
+    while small and large:
+        s_i = small.pop()
+        l_i = large.pop()
+        prob[s_i] = scaled[s_i]
+        alias[s_i] = l_i
+        scaled[l_i] = scaled[l_i] + scaled[s_i] - 1.0
+        (small if scaled[l_i] < 1.0 else large).append(l_i)
+    for i in large + small:
+        prob[i] = 1.0
+    return prob, alias
+
+def _alias_sample(prob: List[float], alias: List[int]) -> int:
+    """Alias Method를 이용한 O(1) 샘플링
+
+    Returns:
+        1부터 len(prob)까지의 정수 (1-indexed)
+    """
+    i = int(random.random() * len(prob))
+    return (i + 1) if random.random() < prob[i] else (alias[i] + 1)
 
 def _binomial_7(p: float) -> int:
     """이항분포 B(7, p) 샘플링
@@ -195,8 +231,11 @@ def sample_total_draws(n_sims: int, base_episodes: int,
     Returns:
         각 시뮬레이션의 총 뽑기 횟수 리스트
     """
-    # 난수 생성기 초기화
+    # 난수 생성기 초기화 (전역 상태 사용)
     random.seed(seed)
+
+    # Alias 테이블 전처리
+    prob, alias = _build_alias_from_cdf(cdf)
 
     totals: List[int] = [0] * n_sims
     for i in range(n_sims):
@@ -204,9 +243,10 @@ def sample_total_draws(n_sims: int, base_episodes: int,
         k = base_episodes + add_ep            # 총 에피소드 수
         s = 0
         for _ in range(k):
-            s += _sample_T_from_cdf(cdf)      # 각 에피소드의 뽑기 수 (O(log n) 이진 탐색)
+            s += _alias_sample(prob, alias)   # 각 에피소드의 뽑기 수
         totals[i] = s
 
+    # 메모리 정리 (prob, alias는 로컬이므로 자동 해제됨)
     return totals
 
 # ---------- 요약 ----------
