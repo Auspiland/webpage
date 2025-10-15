@@ -10,7 +10,7 @@ GAME_TABLE = {
     2: dict(CEIL_RATIO=0.55, MAX_T=90, BASE_P=0.006, ACCEL_START=73, ACCEL_STEP=0.06),
 }
 
-N_SIMS = 100_000  # 메모리 부담 감소 (100k → 50k)
+N_SIMS = 50_000  # 메모리 부담 감소 (100k → 50k)
 SEED = 31014646
 BINS = 300
 
@@ -283,7 +283,7 @@ def _build_alias_from_cdf(cdf: List[float]) -> Tuple[List[float], List[int]]:
         pmf.append(x - prev)
         prev = x
     s = sum(pmf)
-    if s < 0:
+    if s <= 0:
         raise ValueError("Invalid CDF: sum must be positive")
     pmf = [p / s for p in pmf]
 
@@ -439,9 +439,18 @@ def run_simulation(
         ValueError: 잘못된 입력값
     """
     # 입력 검증
-    cfg = GAME_TABLE.get(int(game_id))
+    cfg = GAME_TABLE.get(game_id)
     if not cfg:
         raise ValueError(f"Unknown GAME_ID: {game_id}")
+
+    if goal <= 0:
+        raise ValueError(f"goal must be positive, got {goal}")
+
+    if obs_total < 0:
+        raise ValueError(f"obs_total must be non-negative, got {obs_total}")
+
+    if n_sims <= 0:
+        raise ValueError(f"n_sims must be positive, got {n_sims}")
 
     # seed가 None이면 각 호출마다 다른 시드 생성
     if seed is None:
