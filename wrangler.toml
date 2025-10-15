@@ -1,6 +1,7 @@
 name = "auspiland-test"
 main = "src/entry.py"
 compatibility_date = "2025-10-14"
+compatibility_flags = ["python_workers"]
 
 [assets]
 directory = "./assets"        # 정적 파일 루트
