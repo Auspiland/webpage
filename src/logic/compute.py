@@ -374,14 +374,39 @@ def sample_total_draws(n_sims: int, base_episodes: int,
 
 # ---------- 요약 ----------
 def summarize(totals: List[int], obs_total: int, n_sims: int) -> Dict:
-    greater = sum(1 for x in totals if x > obs_total)
-    percentile = (greater / len(totals) * 100.0) if totals else float("nan")
+    n = len(totals)
+    if n == 0:
+        return {
+            "samples": int(n_sims),
+            "obs_total_draws": int(obs_total),
+            "mean_total_draws": float("nan"),
+            "std_total_draws": float("nan"),
+            "percentile_rank_of_obs_%": float("nan"),
+        }
+
+    # 한 번의 순회로 평균과 percentile 계산 (O(n))
+    total_sum = 0
+    greater = 0
+    for x in totals:
+        total_sum += x
+        if x > obs_total:
+            greater += 1
+
+    mean = total_sum / n
+
+    # 두 번째 순회로 분산 계산 (O(n))
+    var_sum = 0.0
+    for x in totals:
+        var_sum += (x - mean) ** 2
+
+    std = (var_sum / (n - 1)) ** 0.5 if n > 1 else 0.0
+    percentile = (greater / n) * 100.0
+
     return {
         "samples": int(n_sims),
         "obs_total_draws": int(obs_total),
-        "mean_total_draws": float(_mean(totals)),
-        "median_total_draws": float(_median(totals)),
-        "std_total_draws": float(_std_ddof1(totals)),
+        "mean_total_draws": float(mean),
+        "std_total_draws": float(std),
         "percentile_rank_of_obs_%": float(percentile),
     }
 
