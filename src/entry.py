@@ -32,6 +32,10 @@ class Default(WorkerEntrypoint):
         # POST /api/simulate
         # body: { "GAME_ID": 1, "GOAL": 7, "OBS_TOTAL": 888, "N_SIMS"?: int, "SEED"?: int, "BINS"?: int }
         if path == "/api/simulate" and request.method == "POST":
+            # 메모리 정리 강제 실행
+            import gc
+            gc.collect()
+
             try:
                 from logic.compute import run_simulation, build_pity_cdf
             except Exception as e:
@@ -62,7 +66,14 @@ class Default(WorkerEntrypoint):
                 )
                 print(f"[Request #{count}] game_id={game_id}, goal={goal}, obs_total={obs_tot}")
                 print(f"Summary: {summary.get('percentile_rank_of_obs_%', 'N/A')}")
+
+                # 시뮬레이션 후 메모리 정리
+                gc.collect()
+
             except Exception as e:
+                import traceback
+                error_details = traceback.format_exc()
+                print(f"[Error #{count}] {error_details}")
                 return Response.json({"ok": False, "error": str(e)}, status=400, headers=CORS)
 
             # 권장: base64 data URL 대신 '생 SVG 문자열'을 그대로 전달
