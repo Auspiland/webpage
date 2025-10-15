@@ -10,7 +10,7 @@ GAME_TABLE = {
     2: dict(CEIL_RATIO=0.55, MAX_T=90, BASE_P=0.006, ACCEL_START=73, ACCEL_STEP=0.06),
 }
 
-N_SIMS = 100_000  # 메모리 부담 감소 (100k → 50k)
+N_SIMS = 100_000  # Cloudflare Workers 메모리 제한 고려
 SEED = 31014646
 BINS = 300
 
@@ -283,7 +283,7 @@ def _build_alias_from_cdf(cdf: List[float]) -> Tuple[List[float], List[int]]:
         pmf.append(x - prev)
         prev = x
     s = sum(pmf)
-    if s < 0:
+    if s <= 0:
         raise ValueError("Invalid CDF: sum must be positive")
     pmf = [p / s for p in pmf]
 

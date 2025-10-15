@@ -51,6 +51,14 @@ class Default(WorkerEntrypoint):
                 goal     = int(body.get("GOAL"))
                 obs_tot  = int(body.get("OBS_TOTAL"))
 
+                # 입력값 검증
+                if goal <= 0:
+                    return Response.json({"ok": False, "error": "GOAL must be positive"}, status=400, headers=CORS)
+                if obs_tot < 0:
+                    return Response.json({"ok": False, "error": "OBS_TOTAL must be non-negative"}, status=400, headers=CORS)
+                if game_id not in [1, 2]:
+                    return Response.json({"ok": False, "error": "GAME_ID must be 1 or 2"}, status=400, headers=CORS)
+
                 # CDF 캐싱 - 게임 ID별 키 사용
                 # cdf_key = f"cdf_{game_id}"
                 # cdf_str = await store.get(cdf_key)
@@ -70,11 +78,37 @@ class Default(WorkerEntrypoint):
                 # 시뮬레이션 후 메모리 정리
                 gc.collect()
 
+            except ValueError as e:
+                # 입력값 검증 에러 (400)
+                import traceback
+                error_details = traceback.format_exc()
+                print(f"[ValueError #{count}] {error_details}")
+                return Response.json(
+                    {"ok": False, "error": str(e), "type": "ValueError"},
+                    status=400,
+                    headers=CORS
+                )
+            except MemoryError as e:
+                # 메모리 부족 에러 (507)
+                import traceback
+                error_details = traceback.format_exc()
+                print(f"[MemoryError #{count}] {error_details}")
+                gc.collect()  # 즉시 메모리 정리
+                return Response.json(
+                    {"ok": False, "error": "Memory limit exceeded. Try reducing parameters.", "type": "MemoryError"},
+                    status=507,
+                    headers=CORS
+                )
             except Exception as e:
+                # 기타 서버 에러 (500)
                 import traceback
                 error_details = traceback.format_exc()
                 print(f"[Error #{count}] {error_details}")
-                return Response.json({"ok": False, "error": str(e)}, status=400, headers=CORS)
+                return Response.json(
+                    {"ok": False, "error": str(e), "type": type(e).__name__, "traceback": error_details[:500]},
+                    status=500,
+                    headers=CORS
+                )
 
             # 권장: base64 data URL 대신 '생 SVG 문자열'을 그대로 전달
             # 프런트에서 Blob(URL.createObjectURL)로 <img src>에 붙이세요.
