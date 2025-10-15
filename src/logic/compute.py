@@ -288,6 +288,9 @@ def run_simulation(
     Raises:
         ValueError: 잘못된 입력값
     """
+
+    return {"a":"b"}, "<svg></svg>"
+
     # 입력 검증
     cfg = GAME_TABLE.get(int(game_id))
     if not cfg:
@@ -316,8 +319,5 @@ def run_simulation(
     svg = make_hist_svg(
         totals, obs_total, bins=bins, title=title
     )
-
-    # 명시적으로 totals 참조 해제 (메모리 절약)
-    del totals
 
     return summary, svg
