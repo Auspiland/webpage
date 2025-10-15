@@ -5,6 +5,7 @@ compatibility_flags = ["python_workers"]
 
 [assets]
 directory = "./assets"        # 정적 파일 루트
+binding   = "ASSETS" 
 
 # 필요 시 바인딩(선택):
 # [vars]             # 간단한 환경변수
