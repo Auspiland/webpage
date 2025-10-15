@@ -1,92 +1,147 @@
-/* global Toastify */
-function toast(msg, type = "info") {
-  // 색상 프리셋
-  const bg = {
-    info: "linear-gradient(135deg, #4a90e2, #9013fe)",
-    success: "linear-gradient(135deg, #00c853, #00acc1)",
-    error: "linear-gradient(135deg, #ff416c, #ff4b2b)",
-    warn: "linear-gradient(135deg, #ffb300, #fb8c00)",
-  }[type] || "linear-gradient(135deg, #4a90e2, #9013fe)";
-
-  Toastify({ text: msg, duration: 2500, gravity: "top", position: "right", backgroundColor: bg }).showToast();
-}
-
-async function runSimulate(payload) {
-  const res = await fetch("/api/simulate", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
-  return res.json();
-}
-
-function getFormValues() {
-  const game = Number(document.getElementById("game").value);
-  const goal = Number(document.getElementById("goal").value);
-  const obs  = Number(document.getElementById("obs").value);
-  const sims = Number(document.getElementById("sims").value || 500000);
-  const bins = Number(document.getElementById("bins").value || 128);
-  const seed = Number(document.getElementById("seed").value || 20251014);
-
-  return { GAME_ID: game, GOAL: goal, OBS_TOTAL: obs, N_SIMS: sims, BINS: bins, SEED: seed };
-}
-
-function setLoading(disabled) {
-  document.getElementById("run").disabled = disabled;
-  document.getElementById("reset").disabled = disabled;
-}
-
-document.getElementById("sim-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const payload = getFormValues();
-
-  // 간단 검증
-  if (payload.GAME_ID < 1 || payload.GOAL < 1 || payload.OBS_TOTAL < 1) {
-    toast("입력을 다시 확인해주세요.", "warn");
-    return;
-  }
-
-  setLoading(true);
-  toast("시뮬레이션 실행 중…", "info");
+(() => {
+  const form = document.getElementById("f");
   const summaryEl = document.getElementById("summary");
   const plotEl = document.getElementById("plot");
-  summaryEl.textContent = "Running…";
 
-  try {
-    const data = await runSimulate(payload);
-    if (!data.ok) throw new Error(data.error || "unknown error");
+  const btnReset = document.getElementById("btnReset");
+  const btnDlSvg = document.getElementById("btnDownloadSvg");
+  const btnDlJson = document.getElementById("btnDownloadJson");
 
-    // Summary JSON 표시
-    summaryEl.textContent = JSON.stringify(data.summary, null, 2);
+  const rateMeta = document.getElementById("rateMeta");
+  const rlLimit = document.getElementById("rlLimit");
+  const rlRemain = document.getElementById("rlRemain");
+  const rlReset = document.getElementById("rlReset");
 
-    // 이미지 표시
-    plotEl.src = data.image_data_url || "";
-    if (plotEl.src) {
-      plotEl.classList.add("show");
-    }
+  let lastSvgText = null;
+  let lastSummary = null;
 
-    toast("완료되었습니다.", "success");
-  } catch (err) {
-    console.error(err);
-    toast(`실패: ${err.message}`, "error");
-    summaryEl.textContent = `Error: ${err.message}`;
-  } finally {
-    setLoading(false);
+  function readForm(f) {
+    const fd = new FormData(f);
+    const obj = {};
+    for (const [k, v] of fd.entries()) obj[k] = v;
+    // 숫자 변환
+    ["GAME_ID","GOAL","OBS_TOTAL","N_SIMS","BINS","SEED"].forEach((k) => {
+      if (obj[k] !== undefined && obj[k] !== "") {
+        obj[k] = Number(obj[k]);
+      }
+    });
+    return obj;
   }
-});
 
-document.getElementById("reset").addEventListener("click", () => {
-  document.getElementById("game").value = 1;
-  document.getElementById("goal").value = 7;
-  document.getElementById("obs").value = 888;
-  document.getElementById("sims").value = 500000;
-  document.getElementById("bins").value = 128;
-  document.getElementById("seed").value = 20251014;
-  document.getElementById("summary").textContent = '{"status":"ready"}';
-  document.getElementById("plot").src = "";
-  toast("초기화했습니다.", "info");
-});
+  function showRateLimitHeaders(res) {
+    const limit = res.headers.get("X-RateLimit-Limit");
+    const remain = res.headers.get("X-RateLimit-Remaining");
+    const reset = res.headers.get("X-RateLimit-Reset");
+
+    if (limit || remain || reset) {
+      rateMeta.style.display = "flex";
+      rlLimit.textContent = `Limit: ${limit ?? "-"}`;
+      rlRemain.textContent = `Remaining: ${remain ?? "-"}`;
+      rlReset.textContent = reset
+        ? `Reset@ ${new Date(Number(reset) * 1000).toLocaleString()}`
+        : "Reset: -";
+    } else {
+      rateMeta.style.display = "none";
+    }
+  }
+
+  function enableDownloads(enabled) {
+    btnDlSvg.disabled = !enabled;
+    btnDlJson.disabled = !enabled;
+  }
+
+  async function runSimulate(payload) {
+    const res = await fetch("/api/simulate", {
+      method: "POST",
+      headers: { "content-type": "application/json", "accept": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    showRateLimitHeaders(res);
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      const msg = data?.error || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  function setPlotFromSvg(svgText) {
+    // Blob URL로 표시
+    const url = URL.createObjectURL(new Blob([svgText], { type: "image/svg+xml;charset=utf-8" }));
+    plotEl.src = url;
+    plotEl.classList.add("show");
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    enableDownloads(false);
+    plotEl.classList.remove("show");
+    plotEl.removeAttribute("src");
+    lastSvgText = null;
+    lastSummary = null;
+
+    const payload = readForm(form);
+    summaryEl.textContent = "running…";
+
+    try {
+      const data = await runSimulate(payload);
+      // 요약 출력
+      lastSummary = data.summary || null;
+      summaryEl.textContent = JSON.stringify(data.summary, null, 2);
+
+      // SVG 표시
+      if (data.image_svg) {
+        lastSvgText = data.image_svg;
+        setPlotFromSvg(lastSvgText);
+        enableDownloads(true);
+      } else {
+        enableDownloads(false);
+      }
+    } catch (err) {
+      console.error(err);
+      summaryEl.textContent = `오류: ${String(err.message || err)}`;
+      enableDownloads(false);
+    }
+  });
+
+  btnReset.addEventListener("click", () => {
+    summaryEl.textContent = "ready";
+    plotEl.classList.remove("show");
+    plotEl.removeAttribute("src");
+    lastSvgText = null;
+    lastSummary = null;
+    enableDownloads(false);
+  });
+
+  // 다운로드: SVG
+  btnDlSvg.addEventListener("click", () => {
+    if (!lastSvgText) return;
+    const blob = new Blob([lastSvgText], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const now = new Date();
+    const ts = now.toISOString().replace(/[:.]/g, "-");
+    a.download = `distribution-${ts}.svg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  });
+
+  // 다운로드: JSON (summary)
+  btnDlJson.addEventListener("click", () => {
+    if (!lastSummary) return;
+    const blob = new Blob([JSON.stringify(lastSummary, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const now = new Date();
+    const ts = now.toISOString().replace(/[:.]/g, "-");
+    a.href = url;
+    a.download = `summary-${ts}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  });
+})();

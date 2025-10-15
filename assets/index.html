@@ -1,120 +1,139 @@
 <!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Edge App – Monte Carlo Simulator</title>
-
-  <!-- Pico.css (미니멀/반응형) -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.conditional.min.css">
-  <!-- Toastify (토스트 알림) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastify-js/1.6.1/toastify.css" />
-  <!-- AOS (스크롤 애니메이션) -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" />
-
-  <!-- 사용자 정의 스타일 -->
-  <link rel="stylesheet" href="/styles.css" />
-</head>
-<body>
-  <!-- Hero -->
-  <header class="hero">
-    <div class="container">
-      <h1 data-aos="fade-up">Cloudflare Workers Demo</h1>
-      <p data-aos="fade-up" data-aos-delay="100">
-        GAME_ID, GOAL, OBS_TOTAL을 입력하면<br />
-        워커가 시뮬레이션을 수행하고 <b>요약 JSON</b>과 <b>히스토그램</b>을 반환합니다.
-      </p>
-    </div>
-  </header>
-
-  <main class="container">
-    <!-- 카드: 입력 폼 -->
-    <article class="card" data-tilt data-tilt-max="8" data-tilt-speed="500" data-aos="zoom-in">
+  <head>
+    <meta charset="utf-8" />
+    <title>Edge App — Monte Carlo & Normal Fit</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      /* 최소한의 보조 스타일 (styles.css가 있으면 그대로 사용) */
+      :root { --bg: #0f172a; --card:#111827; --muted:#94a3b8; --accent:#06b6d4; }
+      body { margin: 0; background: linear-gradient(180deg,#0b1020,#0f172a 40%,#0b1020);
+             color: #e5e7eb; font-family: ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue","Noto Sans",Ubuntu,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; }
+      a { color: #8be9fd; text-decoration: none; }
+      .wrap { max-width: 1080px; margin: 0 auto; padding: 24px; }
+      header { display:flex; align-items:center; gap:12px; margin-bottom: 20px; }
+      header h1 { margin:0; font-size: 1.6rem; letter-spacing: .2px; }
+      .pill { padding:4px 10px; border-radius: 999px; background: #0ea5e9; color:#03131c; font-weight:600; font-size:.8rem; }
+      .grid { display:grid; grid-template-columns: 1.1fr 1fr; gap: 18px; }
+      .card { background: rgba(17,24,39,.65); border: 1px solid rgba(148,163,184,.18); border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.35); overflow:hidden; }
+      .card h2 { font-size: 1.05rem; margin: 0; padding: 14px 16px; border-bottom: 1px solid rgba(148,163,184,.12); background: rgba(2,6,23,.35); }
+      .card .body { padding: 14px 16px; }
+      .row { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .row .col { display:flex; flex-direction:column; gap:6px; }
+      label { color:#cbd5e1; font-size:.88rem; }
+      input, select { background:#0b1220; color:#e5e7eb; border:1px solid rgba(148,163,184,.25);
+                      border-radius:10px; padding:10px 12px; outline:none; font-size:.95rem; }
+      input:focus, select:focus { border-color:#22d3ee; box-shadow: 0 0 0 3px rgba(34,211,238,.15); }
+      .actions { display:flex; gap:10px; align-items:center; margin-top: 12px; }
+      button { background: linear-gradient(135deg,#06b6d4,#3b82f6); color:white; border:none; border-radius:10px; padding:10px 14px; font-weight:700; cursor:pointer; }
+      button.secondary { background: rgba(2,6,23,.6); border:1px solid rgba(148,163,184,.25); }
+      .status { font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+                white-space: pre-wrap; background:#0b1220; border:1px dashed rgba(148,163,184,.35); border-radius:10px; padding:10px 12px; color:#cbd5e1; }
+      .imgwrap { display:flex; align-items:center; justify-content:center; background:#0b1220; border:1px solid rgba(148,163,184,.2); border-radius: 12px; min-height: 460px; }
+      .imgwrap img { max-width:100%; height:auto; border-radius: 8px; display:none; }
+      .imgwrap img.show { display:block; }
+      .meta { color:#a5b4fc; font-size:.85rem; display:flex; gap:12px; flex-wrap:wrap; margin-top: 8px; }
+      .badge { background: rgba(99,102,241,.18); border:1px solid rgba(99,102,241,.35); padding:4px 8px; border-radius: 999px; }
+      footer { opacity:.7; margin-top: 22px; font-size:.86rem; }
+      @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
       <header>
-        <h2>시뮬레이션 입력</h2>
-        <small>API: <code>POST /api/simulate</code></small>
+        <span class="pill">Cloudflare Workers (Python)</span>
+        <h1>Monte Carlo Simulation & Normal Fit</h1>
       </header>
 
-      <form id="sim-form">
-        <div class="grid">
-          <label>
-            GAME_ID
-            <input type="number" name="GAME_ID" id="game" value="1" min="1" step="1" required />
-          </label>
-          <label>
-            GOAL
-            <input type="number" name="GOAL" id="goal" value="7" min="1" step="1" required />
-          </label>
-          <label>
-            OBS_TOTAL
-            <input type="number" name="OBS_TOTAL" id="obs" value="888" min="1" step="1" required />
-          </label>
-        </div>
-
-        <details class="secondary">
-          <summary>고급 옵션</summary>
-          <div class="grid">
-            <label>
-              N_SIMS <small>(샘플 수, 10k ~ 2M)</small>
-              <input type="number" name="N_SIMS" id="sims" value="500000" min="10000" max="2000000" step="10000" />
-            </label>
-            <label>
-              BINS <small>(히스토그램 구간)</small>
-              <input type="number" name="BINS" id="bins" value="128" min="16" max="1024" step="16" />
-            </label>
-            <label>
-              SEED <small>(랜덤 시드)</small>
-              <input type="number" name="SEED" id="seed" value="20251014" />
-            </label>
-          </div>
-        </details>
-
-        <footer class="actions">
-          <button id="run" type="submit">시뮬레이션 실행</button>
-          <button id="reset" type="button" class="secondary">초기화</button>
-        </footer>
-      </form>
-    </article>
-
-    <!-- 결과 영역 -->
-    <section class="result-section">
       <div class="grid">
-        <!-- JSON 결과 -->
-        <article class="card" data-aos="fade-right">
-          <header>
-            <h3>Summary JSON</h3>
-          </header>
-          <pre id="summary" class="codeblock">{"status":"ready"}</pre>
-        </article>
+        <!-- 좌: 폼 -->
+        <section class="card">
+          <h2>파라미터</h2>
+          <div class="body">
+            <form id="f">
+              <div class="row">
+                <div class="col">
+                  <label>GAME_ID
+                    <select name="GAME_ID" required>
+                      <option value="1" selected>1</option>
+                      <option value="2">2</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="col">
+                  <label>GOAL
+                    <input name="GOAL" type="number" value="7" min="1" required />
+                  </label>
+                </div>
+              </div>
 
-        <!-- 플롯 이미지 -->
-        <article class="card center" data-aos="fade-left">
-          <header>
-            <h3>Histogram</h3>
-            <small>워커가 생성한 SVG를 표시합니다.</small>
-          </header>
-          <img id="plot" alt="simulation histogram" src="" />
-          <footer class="muted">
-            <small>표시는 데이터 URL(<code>image/svg+xml;base64</code>)을 사용합니다.</small>
-          </footer>
-        </article>
+              <div class="row" style="margin-top:10px;">
+                <div class="col">
+                  <label>OBS_TOTAL (관측 총 뽑기 수)
+                    <input name="OBS_TOTAL" type="number" value="888" min="1" required />
+                  </label>
+                </div>
+                <div class="col">
+                  <label>N_SIMS (샘플 수)
+                    <input name="N_SIMS" type="number" value="500000" min="10000" step="10000" />
+                  </label>
+                </div>
+              </div>
+
+              <div class="row" style="margin-top:10px;">
+                <div class="col">
+                  <label>BINS (히스토그램 구간 수)
+                    <input name="BINS" type="number" value="128" min="32" max="256" />
+                  </label>
+                </div>
+                <div class="col">
+                  <label>SEED
+                    <input name="SEED" type="number" value="20251014" />
+                  </label>
+                </div>
+              </div>
+
+              <div class="actions">
+                <button type="submit">/api/simulate 실행</button>
+                <button type="button" id="btnReset" class="secondary">리셋</button>
+                <button type="button" id="btnDownloadSvg" class="secondary" disabled>SVG 저장</button>
+                <button type="button" id="btnDownloadJson" class="secondary" disabled>JSON 저장</button>
+              </div>
+
+              <div class="meta" id="rateMeta" style="display:none;">
+                <span class="badge" id="rlLimit"></span>
+                <span class="badge" id="rlRemain"></span>
+                <span class="badge" id="rlReset"></span>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- 우: 결과/상태 -->
+        <section class="card">
+          <h2>요약 Summary</h2>
+          <div class="body">
+            <pre class="status" id="summary">ready</pre>
+          </div>
+        </section>
       </div>
-    </section>
-  </main>
 
-  <footer class="container footer">
-    <small>Powered by Cloudflare Workers (Python). Styled with Pico CSS, AOS, Toastify, Vanilla-Tilt.</small>
-  </footer>
+      <section class="card" style="margin-top:18px;">
+        <h2>분포 그래프</h2>
+        <div class="body">
+          <div class="imgwrap">
+            <img id="plot" alt="분포 그래프" />
+          </div>
+        </div>
+      </section>
 
-  <!-- 라이브러리 스크립트 -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/toastify-js/1.6.1/toastify.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.1/vanilla-tilt.min.js"></script>
+      <footer>
+        응답에 포함된 <code>image_svg</code>는 클라이언트에서 Blob URL로 변환하여 표시합니다.
+        서버는 별도 Base64 인코딩 없이 전송하므로 응답 크기가 작고 빠릅니다.
+      </footer>
+    </div>
 
-  <!-- 앱 스크립트 -->
-  <script src="/app.js"></script>
-  <script>
-    AOS.init({ once: true, duration: 600, easing: "ease-out-cubic" });
-  </script>
-</body>
+    <script src="/app.js"></script>
+  </body>
 </html>
