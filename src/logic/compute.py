@@ -15,108 +15,19 @@ SEED = 31014646
 BINS = 300
 
 
-# ----- fitting ------
-from math import sqrt, pi, exp
+# 더 이상 정규분포 피팅을 하지 않으므로 관련 함수 제거됨
 
-# 통계 함수 (중복 정의 제거 - 여기서만 정의)
-def _mean(xs):
-    """평균 계산"""
-    return (sum(xs) / len(xs)) if xs else float("nan")
-
-def _std_mle(xs):
-    """MLE 표준편차(ddof=0) – 정규 최우추정치"""
-    n = len(xs)
-    if n <= 1:
-        return 0.0
-    mu = _mean(xs)
-    var = sum((x - mu) ** 2 for x in xs) / n
-    return var ** 0.5
-
-def _std_ddof1(xs):
-    """표본 표준편차(ddof=1) – 불편 추정량"""
-    n = len(xs)
-    if n <= 1:
-        return 0.0
-    mu = _mean(xs)
-    var = sum((x - mu) ** 2 for x in xs) / (n - 1)
-    return var ** 0.5
-
-def _normal_pdf(x, mu, sigma):
-    """정규분포 확률밀도함수 (PDF)"""
-    if sigma <= 0:
-        return 0.0
-    z = (x - mu) / sigma
-    return (1.0 / (sigma * sqrt(2.0 * pi))) * exp(-0.5 * z * z)
-
-def _ecdf(xs_sorted, x):
-    """경험적 누적 분포 함수: P(X ≤ x)
-
-    xs_sorted: 정렬된 데이터 리스트
-    x: 평가할 값
-    반환: 0~1 사이의 확률
-    """
-    # bisect_right와 동일한 로직 (순수 파이썬 구현 유지)
-    lo, hi = 0, len(xs_sorted)
-    while lo < hi:
-        mid = (lo + hi) // 2
-        if xs_sorted[mid] <= x:
-            lo = mid + 1
-        else:
-            hi = mid
-    return lo / len(xs_sorted)
-
-def _ks_distance_to_normal(xs, mu, sigma, grid=100):
-    """Kolmogorov-Smirnov 통계량: 데이터와 정규분포 간의 최대 차이
-
-    Args:
-        xs: 데이터 리스트
-        mu: 정규분포 평균
-        sigma: 정규분포 표준편차
-        grid: 평가할 격자점 개수 (기본값 100으로 축소)
-
-    Returns:
-        KS 거리 (0~1), 값이 작을수록 정규분포에 가까움
-    """
-    if not xs or sigma <= 0:
-        return 1.0
-    ys = sorted(xs)
-    xmin, xmax = ys[0], ys[-1]
-    if xmax == xmin:  # 단일값 보호
-        xmax += 1.0
-        xmin -= 1.0
-
-    # 표준 정규 CDF 근사 (Hastings 1955)
-    def phi(z):
-        """표준 정규분포의 누적분포함수 Φ(z)"""
-        t = 1.0 / (1.0 + 0.2316419 * abs(z))
-        b = ((((1.330274429 * t - 1.821255978) * t + 1.781477937) * t - 0.356563782) * t + 0.319381530) * t
-        nd = (1.0 / sqrt(2.0 * pi)) * exp(-0.5 * z * z)
-        val = 1.0 - nd * b
-        return val if z >= 0 else 1.0 - val
-
-    D = 0.0
-    for i in range(grid + 1):
-        x = xmin + (xmax - xmin) * i / grid
-        Fn = _ecdf(ys, x)
-        z = (x - mu) / sigma
-        F = phi(z)
-        d = abs(Fn - F)
-        if d > D:
-            D = d
-    return D
-
-def make_hist_svg_with_normal(totals, obs_total, bins=128, title="", fit=True):
-    """히스토그램과 정규분포 적합을 SVG로 생성
+def make_hist_svg(totals, obs_total, bins=128, title=""):
+    """히스토그램 SVG 생성 (정규분포 피팅 제거)
 
     Args:
         totals: 시뮬레이션 데이터 리스트
         obs_total: 관측된 값 (빨간 수직선 표시)
         bins: 히스토그램 구간 수
         title: 차트 제목
-        fit: 정규분포 곡선 표시 여부
 
     Returns:
-        (svg_string, mu, sigma_mle, sigma_ddof1)
+        svg_string
     """
     if not totals:
         return '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450"></svg>'
@@ -136,34 +47,19 @@ def make_hist_svg_with_normal(totals, obs_total, bins=128, title="", fit=True):
     n = len(totals)
     density = [c / (n * width) for c in counts]
 
-    # 정규 적합
-    mu = _mean(totals)
-    sigma_mle = _std_mle(totals)
-    # 표시용 표준편차(표본 표준편차)도 계산해 summary에 같이 넣을 수 있게
-    sigma_ddof1 = _std_ddof1(totals)
-
     # SVG 좌표
     W, H = 800, 450
     L, R, T, B = 60, 20, 30, 50
     innerW, innerH = W - L - R, H - T - B
 
-    # 정규 PDF 샘플 (곡선)
-    xs = []
-    pdf = []
-    if fit and sigma_mle > 0:
-        pts = max(120, min(480, bins * 2))  # 매끄러운 곡선용 포인트
-        for i in range(pts + 1):
-            x = x_min + (x_max - x_min) * i / pts
-            xs.append(x)
-            pdf.append(_normal_pdf(x, mu, sigma_mle))
-
-    # y 스케일(히스토 density와 정규 pdf를 같은 축에)
-    y_max = max(max(density) if density else 1.0, max(pdf) if pdf else 0.0, 1e-6)
+    # y 스케일
+    y_max = max(density) if density else 1.0
+    y_max = max(y_max, 1e-6)
 
     def sx(x): return L + (x - x_min) * (innerW / max(1e-9, (x_max - x_min)))
     def sy(y): return T + innerH - y * (innerH / y_max)
 
-    # 히스토 – 단일 path(면적; 기존보다 더 얇게)
+    # 히스토그램 path
     path_cmds = []
     x0 = edges[0]
     y0 = 0.0
@@ -176,14 +72,6 @@ def make_hist_svg_with_normal(totals, obs_total, bins=128, title="", fit=True):
         y0 = d
     path_cmds.append(f"L {sx(edges[-1]):.2f} {sy(0):.2f} Z")
     area_path = " ".join(path_cmds)
-
-    # 정규 곡선 path
-    curve = ""
-    if pdf:
-        parts = [f"M {sx(xs[0]):.2f} {sy(pdf[0]):.2f}"]
-        for x, y in zip(xs[1:], pdf[1:]):
-            parts.append(f"L {sx(x):.2f} {sy(y):.2f}")
-        curve = f'<path d="{" ".join(parts)}" fill="none" stroke="#0d47a1" stroke-width="2.2"/>'
 
     # 관측치 수직선
     ox = sx(min(max(obs_total, x_min), x_max))
@@ -205,21 +93,20 @@ def make_hist_svg_with_normal(totals, obs_total, bins=128, title="", fit=True):
         ticks.append(f'<text x="{tx:.2f}" y="{T+innerH+22}" text-anchor="middle" font-size="11">{int(round(vx))}</text>')
 
     legend = (
-        f'<rect x="{W-280}" y="{T+8}" width="260" height="54" rx="8" fill="white" opacity="0.85" />'
-        f'<circle cx="{W-260}" cy="{T+26}" r="5" fill="black" opacity="0.25"/><text x="{W-246}" y="{T+30}" font-size="12">Histogram (density)</text>'
-        f'<line x1="{W-265}" y1="{T+44}" x2="{W-255}" y2="{T+44}" stroke="#0d47a1" stroke-width="2.2"/><text x="{W-246}" y="{T+48}" font-size="12">Normal fit PDF</text>'
+        f'<rect x="{W-240}" y="{T+8}" width="220" height="34" rx="8" fill="white" opacity="0.85" />'
+        f'<circle cx="{W-220}" cy="{T+26}" r="5" fill="black" opacity="0.25"/>'
+        f'<text x="{W-206}" y="{T+30}" font-size="12">Histogram (density)</text>'
     )
 
     svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}">
   <rect x="0" y="0" width="{W}" height="{H}" fill="white"/>
   {''.join(axes)}
   <path d="{area_path}" fill="black" opacity="0.14" stroke="none"/>
-  {curve}
   {obs_line}
   {''.join(ticks)}
   {legend}
 </svg>'''
-    return svg, mu, sigma_mle, sigma_ddof1
+    return svg
 
 
 
@@ -385,21 +272,24 @@ def summarize(totals: List[int], obs_total: int, n_sims: int) -> Dict:
         }
 
     # 한 번의 순회로 평균과 percentile 계산 (O(n))
-    total_sum = 0
+    n = 0
+    mean = 0.0
+    M2 = 0.0  # 제곱합 누적용
     greater = 0
+
     for x in totals:
-        total_sum += x
+        n += 1
+        delta = x - mean
+        mean += delta / n
+        M2 += delta * (x - mean)
         if x > obs_total:
             greater += 1
 
-    mean = total_sum / n
+    if n < 2:
+        std = 0.0
+    else:
+        std = (M2 / (n - 1)) ** 0.5
 
-    # 두 번째 순회로 분산 계산 (O(n))
-    var_sum = 0.0
-    for x in totals:
-        var_sum += (x - mean) ** 2
-
-    std = (var_sum / (n - 1)) ** 0.5 if n > 1 else 0.0
     percentile = (greater / n) * 100.0
 
     return {
@@ -458,23 +348,14 @@ def run_simulation(
         ceil_ratio=cfg["CEIL_RATIO"],
         seed=seed,
     )
-    # bins 계산: goal에 비례한 히스토그램 해상도 설정
-    # 공식: goal * 160 / 3 (goal이 클수록 더 세밀한 bins)
-    bins = (goal * 155) // 3
+    # bins 계산: 고정값으로 설정하여 SVG 생성 속도 향상
+    bins = 128  # 충분한 해상도 유지
 
     summary = summarize(totals, obs_total, n_sims)
     title = f"Total draws distribution: GET {goal} (n={n_sims})"
-    svg, mu, sigma_mle, sigma_ddof1 = make_hist_svg_with_normal(
-        totals, obs_total, bins=bins, title=title, fit=True
+    svg = make_hist_svg(
+        totals, obs_total, bins=bins, title=title
     )
-    # 간단 KS 거리(정규 적합 적합도 척도)
-    ks = _ks_distance_to_normal(totals, mu, sigma_mle)
-    summary.update({
-        "normal_fit_mu": float(mu),
-        "normal_fit_sigma_mle": float(sigma_mle),
-        "normal_fit_sigma_sample": float(sigma_ddof1),
-        "ks_distance": float(ks),
-    })
 
     # 명시적으로 totals 참조 해제 (메모리 절약)
     del totals
