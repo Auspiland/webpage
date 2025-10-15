@@ -5,9 +5,6 @@ compatibility_flags = ["python_workers"]
 
 workers_dev = true
 
-routes = [
-  { pattern = "auspiland-test.cubejh04.workers.dev/api/*", zone_name = "auspiland-test.cubejh04.workers.dev" }
-]
 
 [assets]
 directory = "./assets"        # 정적 파일 루트
