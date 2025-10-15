@@ -29,6 +29,8 @@
     const limit = res.headers.get("X-RateLimit-Limit");
     const remain = res.headers.get("X-RateLimit-Remaining");
     const reset = res.headers.get("X-RateLimit-Reset");
+    console.log("limit, remain, reset")
+    console.log(limit, remain, reset)
     if (limit || remain || reset) {
       rateMeta.style.display = "flex";
       rlLimit.textContent = `Limit: ${limit ?? "-"}`;
@@ -47,6 +49,9 @@
   }
 
   async function runSimulate(payload) {
+    console.log("===== runSimulate STARTED ======")
+    console.log(payload)
+    console.log(window.location.href)
     const res = await fetch("/api/simulate", {
       method: "POST",
       headers: {
@@ -55,6 +60,8 @@
       },
       body: JSON.stringify(payload),
     });
+    console.log("res : ")
+    console.log(res)
 
     showRateLimitHeaders(res);
 
