@@ -2,6 +2,7 @@
 from workers import WorkerEntrypoint, Response, Request
 from urllib.parse import urlparse
 import json
+import gc
 
 # 공통 헤더(필요 시 도메인으로 제한하세요)
 CORS = {
@@ -9,6 +10,9 @@ CORS = {
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
 }
+
+# 모듈 import를 최상단으로 이동 (매번 import 방지)
+from logic.compute import run_simulation, build_pity_cdf
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
@@ -33,13 +37,7 @@ class Default(WorkerEntrypoint):
         # body: { "GAME_ID": 1, "GOAL": 7, "OBS_TOTAL": 888, "N_SIMS"?: int, "SEED"?: int, "BINS"?: int }
         if path == "/api/simulate" and request.method == "POST":
             # 메모리 정리 강제 실행
-            import gc
             gc.collect()
-
-            try:
-                from logic.compute import run_simulation, build_pity_cdf
-            except Exception as e:
-                return Response.json({"ok": False, "error": f"import failed: {e}"}, status=500, headers=CORS)
             
             try:
                 body = await request.json()
@@ -75,9 +73,6 @@ class Default(WorkerEntrypoint):
                 print(f"[Request #{count}] game_id={game_id}, goal={goal}, obs_total={obs_tot}")
                 print(f"Summary: {summary.get('percentile_rank_of_obs_%', 'N/A')}")
 
-                # 시뮬레이션 후 메모리 정리
-                gc.collect()
-
             except ValueError as e:
                 # 입력값 검증 에러 (400)
                 import traceback
@@ -112,10 +107,16 @@ class Default(WorkerEntrypoint):
 
             # 권장: base64 data URL 대신 '생 SVG 문자열'을 그대로 전달
             # 프런트에서 Blob(URL.createObjectURL)로 <img src>에 붙이세요.
-            return Response.json(
+            result = Response.json(
                 {"ok": True, "summary": summary, "image_svg": svg},
                 headers=CORS
             )
+
+            # 명시적으로 변수 해제 후 메모리 정리
+            del summary, svg
+            gc.collect()
+
+            return result
 
         # 정적 자산 (assets/) — ASSETS 바인딩 필요 (wrangler.toml)
         asset_resp = await self.env.ASSETS.fetch(request)
