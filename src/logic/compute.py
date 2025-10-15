@@ -469,7 +469,7 @@ def run_simulation(
     )
     # bins 계산: goal에 비례한 히스토그램 해상도 설정
     # 공식: goal * 160 / 3 (goal이 클수록 더 세밀한 bins)
-    bins = (goal * 170) // 3
+    bins = (goal * 155) // 3
 
     summary = summarize(totals, obs_total, n_sims)
     title = f"Total draws distribution: GET {goal} (n={n_sims})"
