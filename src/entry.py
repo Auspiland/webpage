@@ -1,67 +1,66 @@
+# -*- coding: utf-8 -*-
 from workers import WorkerEntrypoint, Response, Request
 from urllib.parse import urlparse
+import base64
 import json
 
-# 상대임포트 대신 절대임포트(패키지 구조 필요: src/logic/__init__.py 존재)
-from logic.compute import to_svg
-
+from logic.compute import run_simulation
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
         path = urlparse(request.url).path
 
-        # 1) 헬스체크
+        # 헬스체크
         if path == "/api/health":
             return Response.json({"ok": True})
 
-        # 2) JSON 입력 → SVG → HTML
-        if path == "/api/process" and request.method == "POST":
+        # 시뮬레이션 API
+        # POST /api/simulate
+        # body: { "GAME_ID": 1, "GOAL": 7, "OBS_TOTAL": 888, "N_SIMS"?: int, "SEED"?: int, "BINS"?: int }
+        if path == "/api/simulate" and request.method == "POST":
             try:
                 body = await request.json()
             except Exception:
                 return Response.json({"ok": False, "error": "invalid json"}, status=400)
 
-            title = body.get("title", "결과")
-            points = body.get("points", [[0, 0], [10, 20], [20, 10], [30, 30]])
+            try:
+                game_id  = int(body.get("GAME_ID"))
+                goal     = int(body.get("GOAL"))
+                obs_tot  = int(body.get("OBS_TOTAL"))
+                n_sims   = int(body.get("N_SIMS", 500_000))
+                seed     = int(body.get("SEED", 20251014))
+                bins     = int(body.get("BINS", 128))
 
-            svg = to_svg(points, title)
-            html = f"""<!doctype html>
-<html lang="ko"><meta charset="utf-8" />
-<body style="font-family:sans-serif">
-  <h2>{title}</h2>
-  <p>입력 포인트 개수: {len(points)}개</p>
-  <img alt="결과 그래프" src="data:image/svg+xml;base64,{self._b64(svg)}" />
-</body></html>"""
-            return Response(html, headers={"content-type": "text/html; charset=utf-8"})
+                # 안전 상한 (Workers CPU 시간 대비)
+                n_sims = max(10_000, min(n_sims, 2_000_000))
 
-        # 3) multipart 업로드 (파일/텍스트 혼합)
-        if path == "/api/upload" and request.method == "POST":
-            form = await request.formData()
-            note = form.get("note")
-            file = form.get("file")  # File 객체
+                summary, svg = run_simulation(
+                    game_id=game_id, goal=goal, obs_total=obs_tot,
+                    n_sims=n_sims, seed=seed, bins=bins
+                )
+            except Exception as e:
+                return Response.json({"ok": False, "error": str(e)}, status=400)
+
+            # 브라우저에서 곧바로 표시 가능하도록 data URL 포함
+            svg_b64 = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+            data_url = f"data:image/svg+xml;base64,{svg_b64}"
+
             return Response.json({
                 "ok": True,
-                "note": note,
-                "fileName": getattr(file, "name", None),
-                "fileType": getattr(file, "type", None),
-                "fileSize": getattr(file, "size", None),
+                "summary": summary,
+                "image_data_url": data_url
             })
 
-        # 4) 정적 자산 서빙: ASSETS 바인딩 사용
-        #    우선 그대로 시도 → 404면 /index.html 폴백
+        # 정적 자산 (assets/)
         asset_resp = await self.env.ASSETS.fetch(request)
         if asset_resp.status == 404 and path == "/":
+            # / → /index.html 폴백
+            from urllib.parse import urlparse
             parsed = urlparse(request.url)
             index_url = f"{parsed.scheme}://{parsed.netloc}/index.html"
             index_req = Request(index_url, method="GET")
             asset_resp = await self.env.ASSETS.fetch(index_req)
-
         if asset_resp.status != 404:
             return asset_resp
 
         return Response("Not Found", status=404)
-
-    # 작은 유틸 (Pyodide 호환용)
-    def _b64(self, s: str) -> str:
-        import base64
-        return base64.b64encode(s.encode("utf-8")).decode("ascii")

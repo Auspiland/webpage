@@ -1,0 +1,43 @@
+/* 배경 그라디언트 + 글라스 카드 */
+:root {
+  --grad: linear-gradient(135deg, #2b32b2, #1488cc);
+}
+body {
+  background: var(--grad) fixed;
+  min-height: 100vh;
+}
+.hero {
+  padding: 4rem 0 2rem;
+  color: #fff;
+  text-align: center;
+}
+.card {
+  backdrop-filter: blur(10px);
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+.card header { margin-bottom: .5rem; }
+.card.center { text-align: center; }
+
+.actions { display: flex; gap: .75rem; }
+.codeblock {
+  min-height: 200px;
+  overflow: auto;
+  background: rgba(0,0,0,0.75);
+  color: #d1f0ff;
+  border-radius: 12px;
+  padding: 1rem;
+  font-size: .95rem;
+}
+.result-section { margin: 2rem 0 3rem; }
+img#plot {
+  max-width: 100%;
+  width: 100%;
+  min-height: 240px;
+  opacity: 0;
+  transition: opacity .4s ease;
+}
+img#plot.show { opacity: 1; }
+.footer { color: #f1f5f9; margin-bottom: 2rem; text-align: center; }

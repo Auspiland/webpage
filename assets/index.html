@@ -1,16 +1,120 @@
 <!doctype html>
 <html lang="ko">
-<meta charset="utf-8" />
-<title>Edge App</title>
-<link rel="stylesheet" href="/styles.css" />
-<body>
-  <h1>Cloudflare Workers Demo</h1>
-  <form id="f">
-    <label>제목 <input name="title" value="샘플 결과" /></label>
-    <button type="submit">/api/process 호출</button>
-  </form>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Edge App – Monte Carlo Simulator</title>
 
-  <pre id="status">ready</pre>
+  <!-- Pico.css (미니멀/반응형) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.conditional.min.css">
+  <!-- Toastify (토스트 알림) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastify-js/1.6.1/toastify.css" />
+  <!-- AOS (스크롤 애니메이션) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" />
+
+  <!-- 사용자 정의 스타일 -->
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- Hero -->
+  <header class="hero">
+    <div class="container">
+      <h1 data-aos="fade-up">Cloudflare Workers Demo</h1>
+      <p data-aos="fade-up" data-aos-delay="100">
+        GAME_ID, GOAL, OBS_TOTAL을 입력하면<br />
+        워커가 시뮬레이션을 수행하고 <b>요약 JSON</b>과 <b>히스토그램</b>을 반환합니다.
+      </p>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 카드: 입력 폼 -->
+    <article class="card" data-tilt data-tilt-max="8" data-tilt-speed="500" data-aos="zoom-in">
+      <header>
+        <h2>시뮬레이션 입력</h2>
+        <small>API: <code>POST /api/simulate</code></small>
+      </header>
+
+      <form id="sim-form">
+        <div class="grid">
+          <label>
+            GAME_ID
+            <input type="number" name="GAME_ID" id="game" value="1" min="1" step="1" required />
+          </label>
+          <label>
+            GOAL
+            <input type="number" name="GOAL" id="goal" value="7" min="1" step="1" required />
+          </label>
+          <label>
+            OBS_TOTAL
+            <input type="number" name="OBS_TOTAL" id="obs" value="888" min="1" step="1" required />
+          </label>
+        </div>
+
+        <details class="secondary">
+          <summary>고급 옵션</summary>
+          <div class="grid">
+            <label>
+              N_SIMS <small>(샘플 수, 10k ~ 2M)</small>
+              <input type="number" name="N_SIMS" id="sims" value="500000" min="10000" max="2000000" step="10000" />
+            </label>
+            <label>
+              BINS <small>(히스토그램 구간)</small>
+              <input type="number" name="BINS" id="bins" value="128" min="16" max="1024" step="16" />
+            </label>
+            <label>
+              SEED <small>(랜덤 시드)</small>
+              <input type="number" name="SEED" id="seed" value="20251014" />
+            </label>
+          </div>
+        </details>
+
+        <footer class="actions">
+          <button id="run" type="submit">시뮬레이션 실행</button>
+          <button id="reset" type="button" class="secondary">초기화</button>
+        </footer>
+      </form>
+    </article>
+
+    <!-- 결과 영역 -->
+    <section class="result-section">
+      <div class="grid">
+        <!-- JSON 결과 -->
+        <article class="card" data-aos="fade-right">
+          <header>
+            <h3>Summary JSON</h3>
+          </header>
+          <pre id="summary" class="codeblock">{"status":"ready"}</pre>
+        </article>
+
+        <!-- 플롯 이미지 -->
+        <article class="card center" data-aos="fade-left">
+          <header>
+            <h3>Histogram</h3>
+            <small>워커가 생성한 SVG를 표시합니다.</small>
+          </header>
+          <img id="plot" alt="simulation histogram" src="" />
+          <footer class="muted">
+            <small>표시는 데이터 URL(<code>image/svg+xml;base64</code>)을 사용합니다.</small>
+          </footer>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="container footer">
+    <small>Powered by Cloudflare Workers (Python). Styled with Pico CSS, AOS, Toastify, Vanilla-Tilt.</small>
+  </footer>
+
+  <!-- 라이브러리 스크립트 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/toastify-js/1.6.1/toastify.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.1/vanilla-tilt.min.js"></script>
+
+  <!-- 앱 스크립트 -->
   <script src="/app.js"></script>
+  <script>
+    AOS.init({ once: true, duration: 600, easing: "ease-out-cubic" });
+  </script>
 </body>
 </html>
