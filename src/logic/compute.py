@@ -292,6 +292,11 @@ def run_simulation(
     seed: int = 20251014,
     bins: int = 890,
 ) -> Tuple[Dict, str]:
+    
+    resp = {"Test key":"Test value"}
+    svg = '<svg></svg>'
+    return resp, svg
+
     cfg = GAME_TABLE.get(game_id)
     if not cfg:
         raise ValueError(f"Unknown GAME_ID: {game_id}")
