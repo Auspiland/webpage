@@ -3,8 +3,6 @@ from workers import WorkerEntrypoint, Response, Request
 from urllib.parse import urlparse
 import json
 
-from logic.compute import run_simulation
-
 # 공통 헤더(필요 시 도메인으로 제한하세요)
 CORS = {
     "Access-Control-Allow-Origin": "*",
@@ -28,6 +26,11 @@ class Default(WorkerEntrypoint):
         # POST /api/simulate
         # body: { "GAME_ID": 1, "GOAL": 7, "OBS_TOTAL": 888, "N_SIMS"?: int, "SEED"?: int, "BINS"?: int }
         if path == "/api/simulate" and request.method == "POST":
+            try:
+                from logic.compute import run_simulation
+            except Exception as e:
+                return Response.json({"ok": False, "error": f"import failed: {e}"}, status=500, headers=CORS)
+            
             try:
                 body = await request.json()
             except Exception:
