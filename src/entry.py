@@ -47,12 +47,12 @@ class Default(WorkerEntrypoint):
                 goal     = int(body.get("GOAL"))
                 obs_tot  = int(body.get("OBS_TOTAL"))
 
-                cdf_total = await store.get("cdf") or {}
-                cdf = cdf_total.get(game_id) if cdf_total else {}
+                cdf_total = json.loads(await store.get("cdf") or "{}")
+                cdf = cdf_total.get(game_id) if cdf_total else ""
                 if not cdf:
                     cdf = build_pity_cdf(game_id)
                     cdf_total[game_id] = cdf
-                    await store.put("cdf", cdf_total)
+                    await store.put("cdf", json.dumps(cdf_total))
 
                 summary, svg = run_simulation(
                     game_id=game_id, goal=goal, obs_total=obs_tot, cdf= cdf
