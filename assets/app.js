@@ -123,12 +123,12 @@
     // HTML 생성
     let html = '<div style="font-family: ui-monospace, monospace; line-height: 1.8;">';
 
-    // 1. 관측 상위비율을 가장 위에 표시 (색상 하이라이트) - 소수점 5자리
+    // 1. 관측 상위비율을 가장 위에 표시 (색상 하이라이트)
     if (percentile !== undefined) {
       const color = getPercentileColor(percentile);
       html += `<div style="margin-bottom: 12px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px;">`;
       html += `<span style="color: #94a3b8;">${percentileKey}:</span> `;
-      html += `<span style="color: ${color}; font-weight: bold; font-size: 1.1em;">${percentile.toFixed(5)}</span>`;
+      html += `<span style="color: ${color}; font-weight: bold; font-size: 1.1em;">${percentile.toFixed(2)}</span>`;
       html += `</div>`;
     }
 
