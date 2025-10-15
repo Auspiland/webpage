@@ -10,8 +10,8 @@ GAME_TABLE = {
     2: dict(CEIL_RATIO=0.55, MAX_T=90, BASE_P=0.006, ACCEL_START=73, ACCEL_STEP=0.06),
 }
 
-N_SIMS= 100_000,
-SEED= 31014646,
+N_SIMS = 100_000
+SEED = 31014646
 BINS = 300
 
 
@@ -195,10 +195,10 @@ def make_hist_svg_with_normal(totals, obs_total, bins=128, title="", fit=True):
 def build_pity_cdf(game_id) -> List[float]:
     """최초 성공까지 걸리는 시도수 T(1..max_t)의 CDF (list[float])"""
     cfg = GAME_TABLE.get(game_id)
-    max_t=cfg["MAX_T"],
-    base_p=cfg["BASE_P"],
-    accel_start=cfg["ACCEL_START"],
-    accel_step=cfg["ACCEL_STEP"]
+    max_t = cfg["MAX_T"]
+    base_p = cfg["BASE_P"]
+    accel_start = cfg["ACCEL_START"]
+    accel_step = cfg["ACCEL_STEP"]
 
     # p[t-1] = 각 시도에서의 성공 확률
     p = [0.0] * max_t
