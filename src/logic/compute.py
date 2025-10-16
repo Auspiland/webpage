@@ -15,108 +15,20 @@ SEED = 31014646
 BINS = 300
 
 
-# ----- fitting ------
-from math import sqrt, pi, exp
+# ----- 최소한의 통계 함수만 유지 ------
+from math import sqrt
 
-# 통계 함수 (중복 정의 제거 - 여기서만 정의)
-def _mean(xs):
-    """평균 계산"""
-    return (sum(xs) / len(xs)) if xs else float("nan")
-
-def _std_mle(xs):
-    """MLE 표준편차(ddof=0) – 정규 최우추정치"""
-    n = len(xs)
-    if n <= 1:
-        return 0.0
-    mu = _mean(xs)
-    var = sum((x - mu) ** 2 for x in xs) / n
-    return var ** 0.5
-
-def _std_ddof1(xs):
-    """표본 표준편차(ddof=1) – 불편 추정량"""
-    n = len(xs)
-    if n <= 1:
-        return 0.0
-    mu = _mean(xs)
-    var = sum((x - mu) ** 2 for x in xs) / (n - 1)
-    return var ** 0.5
-
-def _normal_pdf(x, mu, sigma):
-    """정규분포 확률밀도함수 (PDF)"""
-    if sigma <= 0:
-        return 0.0
-    z = (x - mu) / sigma
-    return (1.0 / (sigma * sqrt(2.0 * pi))) * exp(-0.5 * z * z)
-
-def _ecdf(xs_sorted, x):
-    """경험적 누적 분포 함수: P(X ≤ x)
-
-    xs_sorted: 정렬된 데이터 리스트
-    x: 평가할 값
-    반환: 0~1 사이의 확률
-    """
-    # bisect_right와 동일한 로직 (순수 파이썬 구현 유지)
-    lo, hi = 0, len(xs_sorted)
-    while lo < hi:
-        mid = (lo + hi) // 2
-        if xs_sorted[mid] <= x:
-            lo = mid + 1
-        else:
-            hi = mid
-    return lo / len(xs_sorted)
-
-def _ks_distance_to_normal(xs, mu, sigma, grid=100):
-    """Kolmogorov-Smirnov 통계량: 데이터와 정규분포 간의 최대 차이
-
-    Args:
-        xs: 데이터 리스트
-        mu: 정규분포 평균
-        sigma: 정규분포 표준편차
-        grid: 평가할 격자점 개수 (기본값 100으로 축소)
-
-    Returns:
-        KS 거리 (0~1), 값이 작을수록 정규분포에 가까움
-    """
-    if not xs or sigma <= 0:
-        return 1.0
-    ys = sorted(xs)
-    xmin, xmax = ys[0], ys[-1]
-    if xmax == xmin:  # 단일값 보호
-        xmax += 1.0
-        xmin -= 1.0
-
-    # 표준 정규 CDF 근사 (Hastings 1955)
-    def phi(z):
-        """표준 정규분포의 누적분포함수 Φ(z)"""
-        t = 1.0 / (1.0 + 0.2316419 * abs(z))
-        b = ((((1.330274429 * t - 1.821255978) * t + 1.781477937) * t - 0.356563782) * t + 0.319381530) * t
-        nd = (1.0 / sqrt(2.0 * pi)) * exp(-0.5 * z * z)
-        val = 1.0 - nd * b
-        return val if z >= 0 else 1.0 - val
-
-    D = 0.0
-    for i in range(grid + 1):
-        x = xmin + (xmax - xmin) * i / grid
-        Fn = _ecdf(ys, x)
-        z = (x - mu) / sigma
-        F = phi(z)
-        d = abs(Fn - F)
-        if d > D:
-            D = d
-    return D
-
-def make_hist_svg_with_normal(totals, obs_total, bins=128, title="", fit=True):
-    """히스토그램과 정규분포 적합을 SVG로 생성
+def make_hist_svg(totals, obs_total, bins=128, title=""):
+    """히스토그램 SVG 생성 (정규분포 제거)
 
     Args:
         totals: 시뮬레이션 데이터 리스트
         obs_total: 관측된 값 (빨간 수직선 표시)
         bins: 히스토그램 구간 수
         title: 차트 제목
-        fit: 정규분포 곡선 표시 여부
 
     Returns:
-        (svg_string, mu, sigma_mle, sigma_ddof1)
+        svg_string
     """
     if not totals:
         return '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450"></svg>'
@@ -136,90 +48,64 @@ def make_hist_svg_with_normal(totals, obs_total, bins=128, title="", fit=True):
     n = len(totals)
     density = [c / (n * width) for c in counts]
 
-    # 정규 적합
-    mu = _mean(totals)
-    sigma_mle = _std_mle(totals)
-    # 표시용 표준편차(표본 표준편차)도 계산해 summary에 같이 넣을 수 있게
-    sigma_ddof1 = _std_ddof1(totals)
-
     # SVG 좌표
     W, H = 800, 450
     L, R, T, B = 60, 20, 30, 50
     innerW, innerH = W - L - R, H - T - B
 
-    # 정규 PDF 샘플 (곡선)
-    xs = []
-    pdf = []
-    if fit and sigma_mle > 0:
-        pts = max(120, min(480, bins * 2))  # 매끄러운 곡선용 포인트
-        for i in range(pts + 1):
-            x = x_min + (x_max - x_min) * i / pts
-            xs.append(x)
-            pdf.append(_normal_pdf(x, mu, sigma_mle))
-
-    # y 스케일(히스토 density와 정규 pdf를 같은 축에)
-    y_max = max(max(density) if density else 1.0, max(pdf) if pdf else 0.0, 1e-6)
+    # y 스케일
+    y_max = max(density) if density else 1.0
 
     def sx(x): return L + (x - x_min) * (innerW / max(1e-9, (x_max - x_min)))
     def sy(y): return T + innerH - y * (innerH / y_max)
 
-    # 히스토 – 단일 path(면적; 기존보다 더 얇게)
-    path_cmds = []
-    x0 = edges[0]
+    # 히스토그램 path
     y0 = 0.0
-    path_cmds.append(f"M {sx(x0):.2f} {sy(y0):.2f}")
+    threshold = y_max * 1e-5
+    path_parts = [f"M {sx(edges[0]):.2f} {sy(0.0):.2f}"]
     for i, d in enumerate(density):
         x1 = edges[i+1]
-        if d < (y_max * 1e-5): d = 0.0
-        path_cmds.append(f"L {sx(x1):.2f} {sy(y0):.2f}")
-        path_cmds.append(f"L {sx(x1):.2f} {sy(d):.2f}")
-        y0 = d
-    path_cmds.append(f"L {sx(edges[-1]):.2f} {sy(0):.2f} Z")
-    area_path = " ".join(path_cmds)
-
-    # 정규 곡선 path
-    curve = ""
-    if pdf:
-        parts = [f"M {sx(xs[0]):.2f} {sy(pdf[0]):.2f}"]
-        for x, y in zip(xs[1:], pdf[1:]):
-            parts.append(f"L {sx(x):.2f} {sy(y):.2f}")
-        curve = f'<path d="{" ".join(parts)}" fill="none" stroke="#0d47a1" stroke-width="2.2"/>'
+        d_val = 0.0 if d < threshold else d
+        path_parts.extend([f"L {sx(x1):.2f} {sy(y0):.2f}", f"L {sx(x1):.2f} {sy(d_val):.2f}"])
+        y0 = d_val
+    path_parts.append(f"L {sx(edges[-1]):.2f} {sy(0):.2f} Z")
+    area_path = " ".join(path_parts)
 
     # 관측치 수직선
     ox = sx(min(max(obs_total, x_min), x_max))
     obs_line = f'<line x1="{ox:.2f}" y1="{T}" x2="{ox:.2f}" y2="{T+innerH}" stroke="#c62828" stroke-dasharray="6 4" stroke-width="2"/>'
 
     # 축/레이블
+    mid_w, mid_h = L + innerW / 2, T + innerH / 2
+    bottom_y = T + innerH
     axes = [
-        f'<line x1="{L}" y1="{T+innerH}" x2="{L+innerW}" y2="{T+innerH}" stroke="black"/>',
-        f'<line x1="{L}" y1="{T}" x2="{L}" y2="{T+innerH}" stroke="black"/>',
-        f'<text x="{L+innerW/2:.2f}" y="{H-8}" text-anchor="middle" font-size="12">Total draws</text>',
-        f'<text x="16" y="{T+innerH/2:.2f}" transform="rotate(-90 16,{T+innerH/2:.2f})" font-size="12">Density</text>',
+        f'<line x1="{L}" y1="{bottom_y}" x2="{L+innerW}" y2="{bottom_y}" stroke="black"/>',
+        f'<line x1="{L}" y1="{T}" x2="{L}" y2="{bottom_y}" stroke="black"/>',
+        f'<text x="{mid_w:.2f}" y="{H-8}" text-anchor="middle" font-size="12">Total draws</text>',
+        f'<text x="16" y="{mid_h:.2f}" transform="rotate(-90 16,{mid_h:.2f})" font-size="12">Density</text>',
         f'<text x="{W/2:.2f}" y="20" text-anchor="middle" font-size="16">{title}</text>',
     ]
+
+    # ticks
+    x_range = x_max - x_min
+    tick_y1, tick_y2 = bottom_y, bottom_y + 6
     ticks = []
     for i in range(6):
-        vx = x_min + (x_max - x_min) * i / 5.0
+        vx = x_min + x_range * i / 5.0
         tx = sx(vx)
-        ticks.append(f'<line x1="{tx:.2f}" y1="{T+innerH}" x2="{tx:.2f}" y2="{T+innerH+6}" stroke="black"/>')
-        ticks.append(f'<text x="{tx:.2f}" y="{T+innerH+22}" text-anchor="middle" font-size="11">{int(round(vx))}</text>')
-
-    legend = (
-        f'<rect x="{W-280}" y="{T+8}" width="260" height="54" rx="8" fill="white" opacity="0.85" />'
-        f'<circle cx="{W-260}" cy="{T+26}" r="5" fill="black" opacity="0.25"/><text x="{W-246}" y="{T+30}" font-size="12">Histogram (density)</text>'
-        f'<line x1="{W-265}" y1="{T+44}" x2="{W-255}" y2="{T+44}" stroke="#0d47a1" stroke-width="2.2"/><text x="{W-246}" y="{T+48}" font-size="12">Normal fit PDF</text>'
-    )
+        ticks.extend([
+            f'<line x1="{tx:.2f}" y1="{tick_y1}" x2="{tx:.2f}" y2="{tick_y2}" stroke="black"/>',
+            f'<text x="{tx:.2f}" y="{tick_y2+16}" text-anchor="middle" font-size="11">{int(round(vx))}</text>'
+        ])
 
     svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}">
   <rect x="0" y="0" width="{W}" height="{H}" fill="white"/>
   {''.join(axes)}
   <path d="{area_path}" fill="black" opacity="0.14" stroke="none"/>
-  {curve}
   {obs_line}
   {''.join(ticks)}
-  {legend}
 </svg>'''
-    return svg, mu, sigma_mle, sigma_ddof1
+    return svg
 
 
 
@@ -277,24 +163,23 @@ def _build_alias_from_cdf(cdf: List[float]) -> Tuple[List[float], List[int]]:
     Returns:
         (prob, alias): Alias Method용 확률 테이블과 별칭 테이블
     """
-    pmf = []
-    prev = 0.0
-    for x in cdf:
-        pmf.append(x - prev)
-        prev = x
+    # 리스트 컴프리헨션으로 PMF 추출 (최적화)
+    M = len(cdf)
+    pmf = [cdf[0]] + [cdf[i] - cdf[i-1] for i in range(1, M)]
     s = sum(pmf)
-    if s < 0:
+    if s <= 0:
         raise ValueError("Invalid CDF: sum must be positive")
-    pmf = [p / s for p in pmf]
 
-    M = len(pmf)
-    scaled = [p * M for p in pmf]
-    small, large = [], []
-    for i, v in enumerate(scaled):
-        (small if v < 1.0 else large).append(i)
+    # 정규화 및 스케일링을 한 번에 처리
+    scaled = [p * M / s for p in pmf]
+
+    # 초기 분류
+    small = [i for i, v in enumerate(scaled) if v < 1.0]
+    large = [i for i, v in enumerate(scaled) if v >= 1.0]
 
     prob = [0.0] * M
     alias = [0] * M
+
     while small and large:
         s_i = small.pop()
         l_i = large.pop()
@@ -302,6 +187,7 @@ def _build_alias_from_cdf(cdf: List[float]) -> Tuple[List[float], List[int]]:
         alias[s_i] = l_i
         scaled[l_i] = scaled[l_i] + scaled[s_i] - 1.0
         (small if scaled[l_i] < 1.0 else large).append(l_i)
+
     for i in large + small:
         prob[i] = 1.0
     return prob, alias
@@ -350,16 +236,23 @@ def sample_total_draws(n_sims: int, base_episodes: int,
     # Alias 테이블 전처리
     prob, alias = _build_alias_from_cdf(cdf)
 
+    # 로컬 변수로 함수 참조 캐싱 (속도 향상)
+    _rand = random.random
+    M = len(prob)
+
     totals: List[int] = [0] * n_sims
     for i in range(n_sims):
-        add_ep = _binomial_7(ceil_ratio)      # 추가 에피소드 수
-        k = base_episodes + add_ep            # 총 에피소드 수
+        # 이항분포 인라인 (함수 호출 오버헤드 제거)
+        add_ep = sum(1 for _ in range(7) if _rand() < ceil_ratio)
+        k = base_episodes + add_ep
+
+        # Alias 샘플링 인라인 (최적화)
         s = 0
         for _ in range(k):
-            s += _alias_sample(prob, alias)   # 각 에피소드의 뽑기 수
+            idx = int(_rand() * M)
+            s += (idx + 1) if _rand() < prob[idx] else (alias[idx] + 1)
         totals[i] = s
 
-    # 메모리 정리 (prob, alias는 로컬이므로 자동 해제됨)
     return totals
 
 # ---------- 요약 ----------
@@ -464,17 +357,7 @@ def run_simulation(
 
     summary = summarize(totals, obs_total, n_sims)
     title = f"Total draws distribution: GET {goal} (n={n_sims})"
-    svg, mu, sigma_mle, sigma_ddof1 = make_hist_svg_with_normal(
-        totals, obs_total, bins=bins, title=title, fit=True
-    )
-    # 간단 KS 거리(정규 적합 적합도 척도)
-    ks = _ks_distance_to_normal(totals, mu, sigma_mle)
-    summary.update({
-        "normal_fit_mu": float(mu),
-        "normal_fit_sigma_mle": float(sigma_mle),
-        "normal_fit_sigma_sample": float(sigma_ddof1),
-        "ks_distance": float(ks),
-    })
+    svg = make_hist_svg(totals, obs_total, bins=bins, title=title)
 
     # 명시적으로 totals 참조 해제 (메모리 절약)
     del totals
