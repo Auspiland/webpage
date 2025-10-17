@@ -37,10 +37,10 @@ class Default(WorkerEntrypoint):
             gc.collect()
 
             try:
-                from logic.compute import run_simulation, build_pity_cdf
+                from logic.compute import run_simulation, build_pity_cdf, load_precomputed_from_kv
             except Exception as e:
                 return Response.json({"ok": False, "error": f"import failed: {e}"}, status=500, headers=CORS)
-            
+
             try:
                 body = await request.json()
             except Exception:
@@ -50,6 +50,9 @@ class Default(WorkerEntrypoint):
                 game_id  = int(body.get("GAME_ID"))
                 goal     = int(body.get("GOAL"))
                 obs_tot  = int(body.get("OBS_TOTAL"))
+
+                # KV에서 사전 계산된 데이터 로드 시도
+                precomputed_data = await load_precomputed_from_kv(store, game_id, goal)
 
                 # CDF 캐싱 - 게임 ID별 키 사용
                 cdf_key = f"cdf_{game_id}"
@@ -62,9 +65,16 @@ class Default(WorkerEntrypoint):
                     await store.put(cdf_key, json.dumps(cdf))
 
                 summary, svg = run_simulation(
-                    game_id=game_id, goal=goal, obs_total=obs_tot, cdf=cdf
+                    game_id=game_id,
+                    goal=goal,
+                    obs_total=obs_tot,
+                    cdf=cdf,
+                    kv_store=store,
+                    precomputed_data=precomputed_data
                 )
-                print(f"[Request #{count}] game_id={game_id}, goal={goal}, obs_total={obs_tot}")
+
+                data_source = "KV precomputed" if precomputed_data else "live simulation"
+                print(f"[Request #{count}] game_id={game_id}, goal={goal}, obs_total={obs_tot} ({data_source})")
                 print(f"Summary: {summary.get('percentile_rank_of_obs_%', 'N/A')}")
 
                 # 시뮬레이션 후 메모리 정리

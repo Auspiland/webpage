@@ -356,7 +356,9 @@ def run_simulation(
     n_sims: int = N_SIMS,
     seed: int = None,  # None이면 자동 생성
     bins: int = BINS,
-    cdf: dict = {}
+    cdf: dict = {},
+    kv_store = None,  # Cloudflare KV 스토어 (선택적)
+    precomputed_data = None  # 사전 계산된 데이터 (선택적)
 ) -> Tuple[Dict, str]:
     """시뮬레이션 실행 및 통계 분석
 
@@ -368,6 +370,8 @@ def run_simulation(
         seed: 난수 시드 (None이면 시간 기반 자동 생성)
         bins: 히스토그램 bins (실제로는 내부에서 재계산됨)
         cdf: 사전 계산된 CDF (선택적)
+        kv_store: Cloudflare KV 스토어 객체 (선택적)
+        precomputed_data: 사전 계산된 압축 데이터 [min_val, freq] (선택적)
 
     Returns:
         (summary_dict, svg_string): 통계 요약과 SVG 히스토그램
@@ -380,21 +384,30 @@ def run_simulation(
     if not cfg:
         raise ValueError(f"Unknown GAME_ID: {game_id}")
 
-    # seed가 None이면 각 호출마다 다른 시드 생성
-    if seed is None:
-        import time
-        seed = (int(time.time() * 1000000) ^ hash((game_id, goal, obs_total))) % (2**31)
+    # 사전 계산된 데이터 사용 (있는 경우)
+    if precomputed_data:
+        print(f"Using precomputed data for game_id={game_id}, goal={goal}")
+        min_val, freq = precomputed_data
+        totals = decompress_totals(min_val, freq)
+        n_sims = len(totals)
+    else:
+        print(f"Running live simulation for game_id={game_id}, goal={goal}")
+        # seed가 None이면 각 호출마다 다른 시드 생성
+        if seed is None:
+            import time
+            seed = (int(time.time() * 1000000) ^ hash((game_id, goal, obs_total))) % (2**31)
 
-    if not cdf:
-        cdf = build_pity_cdf(game_id)
-    
-    totals = sample_total_draws(
-        n_sims=n_sims,
-        base_episodes=goal,
-        cdf=cdf,
-        ceil_ratio=cfg["CEIL_RATIO"],
-        seed=seed,
-    )
+        if not cdf:
+            cdf = build_pity_cdf(game_id)
+
+        totals = sample_total_draws(
+            n_sims=n_sims,
+            base_episodes=goal,
+            cdf=cdf,
+            ceil_ratio=cfg["CEIL_RATIO"],
+            seed=seed,
+        )
+
     # bins 계산: goal에 비례한 히스토그램 해상도 설정
     # 공식: goal * 160 / 3 (goal이 클수록 더 세밀한 bins)
     bins = (goal * 155) // 3
@@ -490,3 +503,26 @@ def load_precomputed_data(filepath: str):
     import json
     with open(filepath, 'r') as f:
         return json.load(f)
+
+async def load_precomputed_from_kv(kv_store, game_id: int, goal: int):
+    """KV에서 사전 계산된 압축 데이터 불러오기
+
+    Args:
+        kv_store: Cloudflare KV 스토어 객체
+        game_id: 게임 ID (1 또는 2)
+        goal: 목표 획득 수
+
+    Returns:
+        압축된 시뮬레이션 데이터 [min_val, freq_list] 또는 None
+    """
+    import json
+    kv_key = f"game{game_id}_{goal}"
+
+    try:
+        data_str = await kv_store.get(kv_key)
+        if data_str:
+            return json.loads(data_str)
+        return None
+    except Exception as e:
+        print(f"Error loading from KV ({kv_key}): {e}")
+        return None
