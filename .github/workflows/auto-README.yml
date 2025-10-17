@@ -3,8 +3,11 @@ name: Auto Update README with LLM
 on:
   push:
     paths:
-      - "./**"            # ← 감시할 디렉터리(예시)
-      - "!README.md"         # README 변경만으로는 트리거하지 않음(루프 방지)
+      - "src/**"              # 백엔드 로직 변경 감시
+      - "assets/**"           # 프론트엔드 변경 감시
+      - "wrangler.toml"       # 설정 파일 변경 감시
+      - "!README.md"          # README 변경은 제외 (루프 방지)
+      - "!.github/**"         # workflow 자체 변경 제외
   schedule:
     - cron: "0 18 * * *"     # 매일 03:00 KST = 18:00 UTC
   workflow_dispatch:          # 수동 실행도 가능
@@ -13,14 +16,13 @@ permissions:
   contents: write             # README 자동 커밋을 위해 필요
 
 env:
-  TARGET_DIR: "."            # 감시 디렉터리
-  README_PATH: README.md      # 갱신 대상 파일
+  TARGET_DIR: "."                                # 감시 디렉터리
+  README_PATH: "README.md"                       # 갱신 대상 파일
   SECTION_START: "<!-- AUTO-UPDATE:START -->"
   SECTION_END: "<!-- AUTO-UPDATE:END -->"
   LAST_SHA_START: "<!-- LAST_PROCESSED_SHA:"
-  LAST_SHA_END: "-->"
-  LLM_MODEL: gpt-5-mini           # 전체 README 구조 유지를 위해 강력한 모델 사용
-  MAX_DIFF_BYTES: "100000"    # 4개 섹션 분석을 위해 증가
+  LLM_MODEL: gpt-5-mini                          # 전체 README 구조 유지를 위해 강력한 모델 사용
+  MAX_DIFF_BYTES: "100000"                       # 4개 섹션 분석을 위해 증가
 
 jobs:
   update-readme:
@@ -53,7 +55,6 @@ jobs:
             --section-start "$SECTION_START" \
             --section-end "$SECTION_END" \
             --last-sha-start "$LAST_SHA_START" \
-            --last-sha-end '-->' \
             --max-diff-bytes "$MAX_DIFF_BYTES"
 
       - name: Commit & Push if changed

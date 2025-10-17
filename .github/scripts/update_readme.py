@@ -184,7 +184,7 @@ def main():
     ap.add_argument("--section-start", required=True)
     ap.add_argument("--section-end", required=True)
     ap.add_argument("--last-sha-start", required=True)
-    ap.add_argument("--last-sha-end", required=True)
+    ap.add_argument("--last-sha-end", default="-->")  # 기본값 설정으로 shell 이스케이프 문제 해결
     ap.add_argument("--max-diff-bytes", type=int, default=int(os.getenv("MAX_DIFF_BYTES", "60000")))
     args = ap.parse_args()
 
