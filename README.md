@@ -197,35 +197,41 @@ CI / 도구
 
 ### v2.4 (2025-10-17)
 **주요 변경사항**
-- 런타임에서 라이브 시뮬레이션 및 KV 폴백 비활성화: src/entry.py가 ASSETS에서만 precomputed 데이터를 조회하도록 변경되며, 데이터가 없으면 400 오류를 반환하도록 정책 변경됨.
-  - 변경된 동작: entry.py -> load_precomputed_from_assets(self.env.ASSETS, game_id, goal)
-  - 오류 반환 예시: {"ok": False, "error": "No precomputed data for game_id={game_id}, goal={goal}. Please use goal between 1-20."}
-- run_simulation(precomputed_data=...) 필수화: src/logic/compute.py에서 precomputed_data가 없으면 ValueError를 발생시키도록 변경(라이브 경로는 주석 처리).
-- 클라이언트 유효성 검사 강화: assets/app.js에서 GOAL 범위(1~20) 검사 추가, assets/index.html에 input max="20" 추가.
+- 런타임에서 라이브 시뮬레이션 및 KV 폴백 비활성화:
+  - src/entry.py가 ASSETS에서만 precomputed 데이터를 조회하도록 변경됨.
+  - ASSETS에 데이터가 없으면 즉시 400 오류 반환(예: {"ok": False, "error": "No precomputed data for game_id={game_id}, goal={goal}. Please use goal between 1-20."}).
+  - 변경된 호출: load_precomputed_from_assets(self.env.ASSETS, game_id, goal).
+- run_simulation(precomputed_data=...) 필수화:
+  - src/logic/compute.py에서 precomputed_data가 없으면 ValueError 발생하도록 변경됨.
+  - 라이브 샘플링 경로(sample_total_draws 등)는 주석 처리되어 비활성화(코드 보존용).
+- 클라이언트 유효성 검사 강화:
+  - assets/app.js에서 GOAL 범위(1~20) 검사 추가.
+  - assets/index.html에 input max="20" 추가.
 
 **최적화**
-- Assets(엣지) 우선 정책으로 응답 지연 최소화(엣지 fetch + 압축 복원 → 즉시 통계/시각화).
-- precomputed v2 포맷([min_val, freq_list]) 사용으로 네트워크/저장 효율 유지.
+- Assets(엣지) 우선 정책으로 응답 지연 최소화: 엣지 fetch + 압축 복원 → 즉시 통계/시각화.
+- precomputed v2 포맷([min_val, freq_list]) 사용으로 파일 크기 및 전송 효율 유지.
 
 **버그 수정 / 안정성 개선**
-- 잘못된/범위를 벗어난 GOAL 요청은 클라이언트 측에서 사전 차단되며, 서버는 명확한 400 응답을 반환하여 불필요한 처리 차단.
-- 런타임 경로 단순화로 예외 상황(Assets 미존재 등)에 대한 명확한 실패 모드 정의.
+- 잘못된/범위를 벗어난 GOAL 요청을 클라이언트에서 차단하고, 서버는 명확한 400 응답을 반환하여 불필요한 처리 방지.
+- 런타임 경로 단순화로 Assets 미존재 등 예외에 대한 명확한 실패 모드 정의.
 
 **새 기능**
 - 클라이언트 측 GOAL 범위 검증 추가 (assets/app.js).
 - 운영/관리용 kv-upload 툴은 유지되며, 필요 시 수동으로 KV에 precomputed를 올려둘 수 있으나 현재 런타임에서 자동 폴백하지 않음.
 
 ---
+
 ### v2.3 (2025-10-17)
 **주요 변경사항**
 - Assets 기반 사전계산 추가: assets/data/precomputed_game1_v2.json 및 precomputed_game2_v2.json 추가(ASSETS 바인딩을 통해 엣지에서 직접 제공).
 - PERFORMANCE.md 추가: Assets 우선 전략(ASSETS 바인딩), Assets vs KV vs live의 성능/메모리/비용 분석 문서화.
-- Workflow 업데이트: entry.py 처리 흐름이 Assets -> KV -> live 순서로 변경(Assets fetch 우선).
+- Workflow 업데이트: entry.py 처리 흐름이 Assets 우선으로 정렬.
 - wrangler.toml에 ASSETS 바인딩([assets] directory = "./assets", binding = "ASSETS") 권장/문서화.
 
 **최적화**
 - Assets(전역 CDN)에서 사전계산을 읽으면 응답 시간 대폭 단축(수백 ms → ~5-8ms 목표).
-- Assets 캐시 히트 시 CDF/샘플링 경로(전처리)를 건너뜀으로써 CPU 사용량과 비용 절감.
+- Assets 캐시 히트 시 CDF/샘플링 전처리를 건너뜀으로써 CPU 사용량과 비용 절감.
 - precomputed v2 빈도 리스트 포맷을 통해 네트워크/스토리지 효율 개선(파일 크기: game1 ~102KB, game2 ~117KB).
 
 **버그 수정 / 안정성 개선**
@@ -237,6 +243,7 @@ CI / 도구
 - assets/data/* 로 precomputed 파일 배포 가능 — 엣지에서 직접 읽어 latency 최적화.
 
 ---
+
 ### v2.2 (2025-10-17)
 **주요 변경사항**
 - KV 사전계산 통합: src/logic/compute.py에 async load_precomputed_from_kv(kv_store, game_id, goal) 추가 및 run_simulation 서명 확장(kv_store, precomputed_data).
@@ -259,6 +266,7 @@ CI / 도구
 - KV_INTEGRATION.md: KV 운영 가이드(키 규칙: game{game_id}_{goal}, 값 포맷: [min_val, freq_list]) 및 성능 비교 표 포함.
 
 ---
+
 ### v2.1 (2025-10-17)
 **주요 변경사항**
 - README 자동 갱신 스크립트 업데이트: .github/scripts/update_readme.py가 OpenAI Responses API(client.responses.create) 사용하도록 변경.
@@ -272,6 +280,7 @@ CI / 도구
 - 구버전 OpenAI 호출(choices/message 기반) 호환성 문제 수정.
 
 ---
+
 ### v2.0 (2025-10-14)
 **주요 변경사항**
 - Cloudflare Workers Python 런타임으로 전환.
@@ -288,8 +297,13 @@ CI / 도구
 - SVG Blob URL 관련 메모리 누수 완화.
 
 ---
+
 ### v1.0 (Initial Release)
-- 기본 몬테카를로 시뮬레이션 엔
+- 기본 몬테카를로 시뮬레이션 엔진
+- 정규분포 피팅 기능
+- 히스토그램 시각화
+- 2개 게임 모드 지원
+- 사전 계산 데이터 생성 스크립트
 <!-- AUTO-UPDATE:END -->
 
-<!-- LAST_PROCESSED_SHA: 09e7c2d04e77eddda1068eb67300258fb6a8e2af -->
+<!-- LAST_PROCESSED_SHA: b76faee60b0f0bdb945ad5748fc8585ace730087 -->
