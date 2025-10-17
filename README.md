@@ -27,13 +27,6 @@ webpage/
 │       ├── precomputed_game1_v2.json      # GAME_ID=1 압축 데이터 (v2)
 │       └── precomputed_game2_v2.json      # GAME_ID=2 압축 데이터 (v2)
 │
-├── .github/                               # CI / 자동화 스크립트
-│   └── scripts/
-│       └── update_readme.py               # README 자동 갱신 스크립트 (OpenAI Responses API 사용, tenacity 재시도)
-│                                           # - 함수: llm_summarize(openai_key, model, prompt)
-│                                           # - 변경점: OpenAI SDK 사용법 변경 -> client.responses.create(..., input=[...]), token_param={"max_output_tokens":6000}, 반환값 resp.output_text
-│                                           # - 재시도: tenacity.retry(wait_exponential, stop_after_attempt=4)
-│
 ├── wrangler.toml                          # Cloudflare Workers 설정
 └── README.md                              # 프로젝트 설명 및 API/개발 가이드 (자동 갱신 메커니즘 포함)
 ```
