@@ -9,7 +9,7 @@ on:
       - "!README.md"          # README 변경은 제외 (루프 방지)
       - "!.github/**"         # workflow 자체 변경 제외
   schedule:
-    - cron: "0 18 * * *"     # 매일 03:00 KST = 18:00 UTC
+    - cron: "0 10 * * *"     # 매일 19:00 KST = 10:00 UTC
   workflow_dispatch:          # 수동 실행도 가능
 
 permissions:

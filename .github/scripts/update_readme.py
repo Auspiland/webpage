@@ -1,5 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""
+README 자동 업데이트 스크립트
+
+Git diff를 분석하여 LLM을 통해 README.md의 자동 업데이트 섹션을 갱신합니다.
+- .github/ 디렉토리 하위 파일들은 분석 대상에서 제외
+- Dir Structure, Workflow, Features, Versions 섹션을 자동으로 업데이트
+- 마지막 처리된 commit SHA를 추적하여 중복 처리 방지
+"""
 
 import argparse
 import os
@@ -56,7 +64,8 @@ def calc_changed_files(target_dir: str, base_sha: str, head_sha: str) -> List[st
     if base_sha == head_sha:
         return []
     diff_out = run(["git", "diff", "--name-only", f"{base_sha}..{head_sha}", "--", target_dir])
-    files = [f for f in diff_out.splitlines() if f.strip()]
+    # .github 디렉토리 아래 파일들은 제외
+    files = [f for f in diff_out.splitlines() if f.strip() and not f.startswith('.github/')]
     return files
 
 def collect_diffs(files: List[str], base_sha: str, head_sha: str, max_bytes: int) -> str:
@@ -113,9 +122,10 @@ Analyze repository changes and update the README structure comprehensively.
 
 ## Repository Context
 - Project: Monte Carlo Simulation Web App (Cloudflare Workers + Python)
-- Target directory: {target_dir}
+- Target directory: {target_dir} (excluding .github/ directory)
 - Base commit: {base_sha}
 - Head commit: {head_sha}
+- Note: Changes in .github/ (workflows, scripts) are intentionally excluded from analysis
 
 ## Current README Structure
 The README must maintain these sections in order:
@@ -212,12 +222,14 @@ def main():
     # 변경 파일 수집
     changed = calc_changed_files(args.target_dir, base_sha, head_sha)
     if not changed:
-        print("No changes in target directory since last processed SHA.")
+        print("No changes in target directory since last processed SHA. Skipping LLM call.")
         # 그래도 최신 SHA로 마커만 갱신
         updated = upsert_marker(readme_txt, args.last_sha_start, args.last_sha_end, head_sha)
         if updated != readme_txt:
             readme_path.write_text(updated, encoding="utf-8")
         return
+
+    print(f"Detected {len(changed)} changed file(s). Proceeding with LLM analysis...")
 
     # diff 모으기
     diff_snippets = collect_diffs(changed, base_sha, head_sha, args.max_diff_bytes)
