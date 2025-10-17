@@ -10,7 +10,6 @@ from typing import List, Tuple
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-# OpenAI SDK v1.x
 from openai import OpenAI
 
 # -----------------------------
@@ -93,7 +92,7 @@ def collect_diffs(files: List[str], base_sha: str, head_sha: str, max_bytes: int
 def llm_summarize(openai_key: str, model: str, prompt: str) -> str:
     client = OpenAI(api_key=openai_key)
 
-    token_param = {"max_output_tokens": 4000}
+    token_param = {"max_output_tokens": 6000}
 
     resp = client.responses.create(
         model=model,
@@ -103,7 +102,7 @@ def llm_summarize(openai_key: str, model: str, prompt: str) -> str:
         ],
         **token_param
     )
-    return resp.choices[0].message.content.strip()
+    return resp.output_text
 
 # -----------------------------
 # Main
