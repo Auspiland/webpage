@@ -504,8 +504,50 @@ def load_precomputed_data(filepath: str):
     with open(filepath, 'r') as f:
         return json.load(f)
 
+async def load_precomputed_from_assets(assets_binding, game_id: int, goal: int):
+    """Assets에서 사전 계산된 압축 데이터 불러오기
+
+    Args:
+        assets_binding: Cloudflare Assets 바인딩 객체
+        game_id: 게임 ID (1 또는 2)
+        goal: 목표 획득 수
+
+    Returns:
+        압축된 시뮬레이션 데이터 [min_val, freq_list] 또는 None
+    """
+    import json
+    from workers import Request
+
+    # 정적 파일 경로
+    asset_path = f"https://dummy/data/precomputed_game{game_id}_v2.json"
+
+    try:
+        # Assets에서 JSON 파일 가져오기 (~1-3ms)
+        asset_req = Request(asset_path, method="GET")
+        response = await assets_binding.fetch(asset_req)
+
+        if response.status != 200:
+            print(f"Asset not found: {asset_path}")
+            return None
+
+        # JSON 파싱
+        full_data = await response.json()
+
+        # 첫 번째 배열은 키 목록, 나머지는 데이터
+        keys = full_data[0]
+
+        # goal에 해당하는 인덱스 찾기
+        if goal in keys:
+            index = keys.index(goal) + 1  # +1은 keys 배열 다음부터 데이터
+            return full_data[index]  # [min_val, freq_list]
+
+        return None
+    except Exception as e:
+        print(f"Error loading from assets (game{game_id}_{goal}): {e}")
+        return None
+
 async def load_precomputed_from_kv(kv_store, game_id: int, goal: int):
-    """KV에서 사전 계산된 압축 데이터 불러오기
+    """KV에서 사전 계산된 압축 데이터 불러오기 (폴백)
 
     Args:
         kv_store: Cloudflare KV 스토어 객체
