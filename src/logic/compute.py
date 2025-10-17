@@ -384,29 +384,30 @@ def run_simulation(
     if not cfg:
         raise ValueError(f"Unknown GAME_ID: {game_id}")
 
-    # 사전 계산된 데이터 사용 (있는 경우)
-    if precomputed_data:
-        print(f"Using precomputed data for game_id={game_id}, goal={goal}")
-        min_val, freq = precomputed_data
-        totals = decompress_totals(min_val, freq)
-        n_sims = len(totals)
-    else:
-        print(f"Running live simulation for game_id={game_id}, goal={goal}")
-        # seed가 None이면 각 호출마다 다른 시드 생성
-        if seed is None:
-            import time
-            seed = (int(time.time() * 1000000) ^ hash((game_id, goal, obs_total))) % (2**31)
+    # 사전 계산된 데이터 필수
+    if not precomputed_data:
+        raise ValueError(f"No precomputed data available for game_id={game_id}, goal={goal}")
 
-        if not cdf:
-            cdf = build_pity_cdf(game_id)
+    print(f"Using precomputed data for game_id={game_id}, goal={goal}")
+    min_val, freq = precomputed_data
+    totals = decompress_totals(min_val, freq)
+    n_sims = len(totals)
 
-        totals = sample_total_draws(
-            n_sims=n_sims,
-            base_episodes=goal,
-            cdf=cdf,
-            ceil_ratio=cfg["CEIL_RATIO"],
-            seed=seed,
-        )
+    # 실시간 시뮬레이션 비활성화 (코드 보존용)
+    # if False:  # 실시간 시뮬레이션 (현재 비활성화)
+    #     print(f"Running live simulation for game_id={game_id}, goal={goal}")
+    #     if seed is None:
+    #         import time
+    #         seed = (int(time.time() * 1000000) ^ hash((game_id, goal, obs_total))) % (2**31)
+    #     if not cdf:
+    #         cdf = build_pity_cdf(game_id)
+    #     totals = sample_total_draws(
+    #         n_sims=n_sims,
+    #         base_episodes=goal,
+    #         cdf=cdf,
+    #         ceil_ratio=cfg["CEIL_RATIO"],
+    #         seed=seed,
+    #     )
 
     # bins 계산: goal에 비례한 히스토그램 해상도 설정
     # 공식: goal * 160 / 3 (goal이 클수록 더 세밀한 bins)

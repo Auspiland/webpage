@@ -51,12 +51,15 @@ class Default(WorkerEntrypoint):
                 goal     = int(body.get("GOAL"))
                 obs_tot  = int(body.get("OBS_TOTAL"))
 
-                # 1순위: Assets에서 사전 계산된 데이터 로드 (~1-3ms)
+                # Assets에서 사전 계산된 데이터 로드 (~1-3ms)
                 precomputed_data = await load_precomputed_from_assets(self.env.ASSETS, game_id, goal)
 
-                # 2순위: KV 폴백 (Assets에 없는 경우)
+                # 데이터가 없으면 에러 반환 (실시간 시뮬레이션 비활성화)
                 if not precomputed_data:
-                    precomputed_data = await load_precomputed_from_kv(store, game_id, goal)
+                    return Response.json({
+                        "ok": False,
+                        "error": f"No precomputed data for game_id={game_id}, goal={goal}. Please use goal between 1-20."
+                    }, status=400, headers=CORS)
 
                 # CDF 캐싱 - 게임 ID별 키 사용
                 cdf_key = f"cdf_{game_id}"

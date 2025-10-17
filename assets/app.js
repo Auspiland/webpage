@@ -52,6 +52,12 @@
     console.log("===== runSimulate STARTED ======")
     console.log(payload)
     console.log(window.location.href)
+
+    // GOAL 범위 검증 (1~20)
+    if (payload.GOAL < 1 || payload.GOAL > 20) {
+      throw new Error(`GOAL must be between 1 and 20. Current value: ${payload.GOAL}`);
+    }
+
     const res = await fetch("/api/simulate", {
       method: "POST",
       headers: {
