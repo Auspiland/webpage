@@ -92,14 +92,16 @@ def collect_diffs(files: List[str], base_sha: str, head_sha: str, max_bytes: int
 @retry(wait=wait_exponential(multiplier=1, min=2, max=20), stop=stop_after_attempt(4))
 def llm_summarize(openai_key: str, model: str, prompt: str) -> str:
     client = OpenAI(api_key=openai_key)
-    resp = client.chat.completions.create(
+
+    token_param = {"max_output_tokens": 4000}
+
+    resp = client.responses.create(
         model=model,
-        messages=[
+        input=[
             {"role": "system", "content": "You are a technical documentation expert specializing in README maintenance for Cloudflare Workers projects."},
             {"role": "user", "content": prompt}
         ],
-        temperature=0.2,
-        max_tokens=4000,  # 4 sections 전체를 다룰 수 있도록 증가
+        **token_param
     )
     return resp.choices[0].message.content.strip()
 
