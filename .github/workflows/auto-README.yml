@@ -53,7 +53,7 @@ jobs:
             --section-start "$SECTION_START" \
             --section-end "$SECTION_END" \
             --last-sha-start "$LAST_SHA_START" \
-            --last-sha-end "$LAST_SHA_END" \
+            --last-sha-end '-->' \
             --max-diff-bytes "$MAX_DIFF_BYTES"
 
       - name: Commit & Push if changed
