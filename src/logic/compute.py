@@ -10,13 +10,57 @@ GAME_TABLE = {
     2: dict(CEIL_RATIO=0.55, MAX_T=90, BASE_P=0.006, ACCEL_START=73, ACCEL_STEP=0.06),
 }
 
-N_SIMS = 100_000  # 메모리 부담 감소 (100k → 50k)
+N_SIMS = 1_000_000  # 고정밀 시뮬레이션
 SEED = 31014646
 BINS = 300
 
 
 # ----- 최소한의 통계 함수만 유지 ------
 from math import sqrt
+
+# ---------- 데이터 압축/해제 (빈도 리스트) ----------
+def compress_totals(totals: List[int]) -> Tuple[int, List[int]]:
+    """totals 리스트를 빈도 리스트로 압축 (무손실)
+
+    Args:
+        totals: 시뮬레이션 데이터 리스트 (100,000개)
+
+    Returns:
+        (min_value, freq_list):
+        - min_value: 최소값
+        - freq_list: 각 값의 빈도 [count_at_min, count_at_min+1, ...]
+        예: goal=30 → 최대 30*160=4800개 원소
+    """
+    if not totals:
+        return 0, []
+
+    min_val = min(totals)
+    max_val = max(totals)
+    size = max_val - min_val + 1
+
+    # 빈도 리스트 생성 (index = value - min_val)
+    freq = [0] * size
+    for v in totals:
+        freq[v - min_val] += 1
+
+    return min_val, freq
+
+def decompress_totals(min_val: int, freq: List[int]) -> List[int]:
+    """빈도 리스트에서 원본 totals 완벽 복원
+
+    Args:
+        min_val: 최소값
+        freq: 빈도 리스트
+
+    Returns:
+        재구성된 totals 리스트 (원본과 100% 동일한 분포)
+    """
+    totals = []
+    for i, count in enumerate(freq):
+        if count > 0:
+            value = min_val + i
+            totals.extend([value] * count)
+    return totals
 
 def make_hist_svg(totals, obs_total, bins=128, title=""):
     """히스토그램 SVG 생성 (정규분포 제거)
@@ -363,3 +407,86 @@ def run_simulation(
     del totals
 
     return summary, svg
+
+# ---------- 사전 계산 데이터 생성 ----------
+def generate_precomputed_data(game_id: int, goal_range: range, n_sims: int = N_SIMS, seed: int = SEED):
+    """goal 범위에 대해 시뮬레이션 실행 후 압축 데이터 생성
+
+    Args:
+        game_id: 게임 ID (1 또는 2)
+        goal_range: goal 범위 (예: range(1, 21) → 1~20)
+        n_sims: 시뮬레이션 횟수
+        seed: 난수 시드
+
+    Returns:
+        2차원 리스트 구조:
+        [
+            [1, 2, 3, ..., 20],           # index 0: goal 리스트
+            [min1, [freq1]],              # index 1: goal=1 압축 데이터
+            [min2, [freq2]],              # index 2: goal=2 압축 데이터
+            ...
+            [min20, [freq20]]             # index 20: goal=20 압축 데이터
+        ]
+    """
+    cfg = GAME_TABLE.get(int(game_id))
+    if not cfg:
+        raise ValueError(f"Unknown GAME_ID: {game_id}")
+
+    # CDF는 한 번만 계산
+    cdf = build_pity_cdf(game_id)
+
+    # 결과 저장 구조
+    result = [list(goal_range)]  # index 0: goal 리스트
+
+    print(f"Starting simulation for game_id={game_id}, n_sims={n_sims:,}")
+
+    for goal in goal_range:
+        print(f"  Processing goal={goal}...", end=" ")
+
+        # 시뮬레이션 실행
+        totals = sample_total_draws(
+            n_sims=n_sims,
+            base_episodes=goal,
+            cdf=cdf,
+            ceil_ratio=cfg["CEIL_RATIO"],
+            seed=seed + goal,  # goal마다 다른 시드
+        )
+
+        # 압축
+        min_val, freq = compress_totals(totals)
+
+        # 저장 (index = goal)
+        result.append([min_val, freq])
+
+        print(f"min={min_val}, freq_len={len(freq)}, compression={100*(1 - len(freq)/n_sims):.1f}%")
+
+        # 메모리 해제
+        del totals
+
+    print("Simulation complete!")
+    return result
+
+def save_precomputed_data(data, filepath: str):
+    """압축 데이터를 JSON 파일로 저장
+
+    Args:
+        data: generate_precomputed_data의 반환값
+        filepath: 저장 경로 (예: "precomputed_game1.json")
+    """
+    import json
+    with open(filepath, 'w') as f:
+        json.dump(data, f)
+    print(f"Saved to {filepath}")
+
+def load_precomputed_data(filepath: str):
+    """저장된 압축 데이터 불러오기
+
+    Args:
+        filepath: 파일 경로
+
+    Returns:
+        2차원 리스트 데이터
+    """
+    import json
+    with open(filepath, 'r') as f:
+        return json.load(f)
