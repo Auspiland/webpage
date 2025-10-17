@@ -11,45 +11,51 @@ Cloudflare Workers 기반의 몬테카를로 시뮬레이션 웹 애플리케이
 ```
 # 루트 (프로젝트 최상위)
 ├── KV_INTEGRATION.md                      # KV 통합 문서: KV 데이터 키/값 포맷, 업로드/운영 가이드, 성능 비교
-├── kv-upload/                             # KV 업로드 도구 및 예제 Worker
-│   ├── README.md                          # kv-upload 사용법 및 예제
-│   ├── upload-game-data.js                # JSON -> KV 업로드 스크립트 (wrangler kv key put 사용)
-│   └── worker-game-data.ts                # KV를 읽어주는 예제 Cloudflare Worker (GET /game1/{key}, /game1/list, /game1/all)
+├── PERFORMANCE.md                          # 성능 최적화 문서: Assets 우선 전략, CPU/네트워크 비교, 메모리/응답 시간 분석
+├── kv-upload/                              # KV 업로드 도구 및 예제 Worker
+│   ├── README.md                           # kv-upload 사용법 및 예제
+│   ├── upload-game-data.js                 # JSON -> KV 업로드 스크립트 (wrangler kv key put 사용). 설정: JSON_FILE_PATH, NAMESPACE_ID, KEY_PREFIX
+│   └── worker-game-data.ts                 # KV를 읽어주는 예제 Cloudflare Worker (GET /game1/{key}, /game1/list, /game1/all) — CORS 및 예외 처리 포함
 │
 webpage/
-├── assets/                                # 정적 파일 (프론트엔드)
-│   ├── index.html                         # 메인 HTML 페이지
-│   ├── app.js                             # 클라이언트 로직 (API 호출, UI 업데이트)
-│   └── styles.css                         # 스타일시트
+├── assets/                                 # 정적 파일 (프론트엔드 + precomputed 데이터, CDN에 배포됨)
+│   ├── index.html                          # 메인 HTML 페이지
+│   ├── app.js                              # 클라이언트 로직 (API 호출, UI 업데이트, SVG 렌더링)
+│   ├── styles.css                          # 스타일시트
+│   └── data/
+│       ├── precomputed_game1_v2.json       # GAME_ID=1 압축 사전계산 데이터 (v2, 빈도 리스트) — Assets 우선 읽기 대상
+│       └── precomputed_game2_v2.json       # GAME_ID=2 압축 사전계산 데이터 (v2, 빈도 리스트)
 │
-├── src/                                   # 백엔드 로직 (Python Workers)
-│   ├── entry.py                           # Workers 진입점 (라우팅, CORS, KV 통합 시도, 요청 로깅) - 변경: KV 사전계산 로드 호출(load_precomputed_from_kv), run_simulation 인자 확장
-│   └── logic/                             # 시뮬레이션 코어 로직
+├── src/                                    # 백엔드 로직 (Python Workers)
+│   ├── entry.py                            # Workers 진입점 (라우팅, CORS, Assets 우선 조회 -> KV 폴백 -> live 시뮬레이션). 변경: Assets fetch 우선, load_precomputed_from_kv 호출 유지, run_simulation 인자 확장(precomputed_data, kv_store)
+│   └── logic/                              # 시뮬레이션 코어 로직
 │       ├── __init__.py
-│       ├── compute.py                     # 시뮬레이션 엔진 및 유틸 (CDF 구성, Alias Method, SVG 생성)
-│       │                                       핵심 함수: build_pity_cdf, sample_total_draws, summarize, make_hist_svg
-│       │                                       변경/추가: run_simulation 서명 확장(kv_store, precomputed_data), load_precomputed_from_kv(async), decompress_totals 사용 경로
-│       ├── generate_precomputed.py        # 사전 계산 데이터 생성 스크립트 (precompute -> JSON)
-│       ├── convert_data.py                # 데이터 포맷 변환 유틸리티
-│       ├── precomputed_game1.json         # GAME_ID=1 사전 계산 데이터 (원본)
-│       ├── precomputed_game2.json         # GAME_ID=2 사전 계산 데이터 (원본)
-│       ├── precomputed_game1_v2.json      # GAME_ID=1 압축 데이터 (v2) - 빈도 리스트 형식
-│       └── precomputed_game2_v2.json      # GAME_ID=2 압축 데이터 (v2) - 빈도 리스트 형식
+│       ├── compute.py                      # 시뮬레이션 엔진 및 유틸 (CDF 구성, Alias Method, SVG 생성)
+│       │                                        핵심 함수: build_pity_cdf, sample_total_draws, summarize, make_hist_svg, preprocess_alias
+│       │                                        변경/추가: run_simulation 서명 확장(kv_store, precomputed_data), load_precomputed_from_kv(async), decompress_totals 경로/사용
+│       ├── generate_precomputed.py         # 사전 계산 데이터 생성 스크립트 (precompute -> JSON 압축 포맷)
+│       ├── convert_data.py                 # 데이터 포맷 변환 유틸리티 (원본 -> v2 빈도 리스트)
+│       ├── precomputed_game1.json          # GAME_ID=1 사전 계산 데이터 (원본, 디버그/생성용)
+│       ├── precomputed_game2.json          # GAME_ID=2 사전 계산 데이터 (원본)
+│       ├── precomputed_game1_v2.json       # GAME_ID=1 압축 데이터 (v2) - 빈도 리스트 형식 (assets/data/)
+│       └── precomputed_game2_v2.json       # GAME_ID=2 압축 데이터 (v2) - 빈도 리스트 형식 (assets/data/)
 │
-├── wrangler.toml                          # Cloudflare Workers 설정 (KV 네임스페이스 바인딩 등)
-└── README.md                              # 프로젝트 설명 및 API/개발 가이드 (자동 갱신 메커니즘 포함)
+├── wrangler.toml                           # Cloudflare Workers 설정
+│   ├─ (ASSETS) [assets] directory = "./assets", binding = "ASSETS"  # Assets 바인딩: precomputed JSON을 엣지에서 직접 읽도록 설정됨
+│   └─ (KV) [[kv_namespaces]] binding = "GLOBAL" id = "<namespace-id>"  # KV 네임스페이스 바인딩
+└── README.md                               # 프로젝트 설명 및 API/개발 가이드 (자동 갱신 메커니즘 포함)
 ```
 
-- 추가된 파일/디렉토리 설명
-  - KV_INTEGRATION.md: KV 통합 전반(키 규칙 game{game_id}_{goal}, 값 포맷 [min_val, freq_list], 업로드/성능/주의사항) 문서화.
-  - kv-upload/upload-game-data.js: precomputed JSON을 읽어 wrangler kv key put으로 업로드하는 Node 스크립트. 기본 JSON 경로: src/logic/precomputed_game2_v2.json, KEY_PREFIX 기본 'game2_'.
-  - kv-upload/worker-game-data.ts: KV 읽기용 예제 Worker로 GET /game1/{key} /game1/list /game1/all 엔드포인트 제공.
-  - src/logic/compute.py: run_simulation 시 precomputed_data 사용 경로 추가, load_precomputed_from_kv() 비동기 함수 추가. run_simulation이 precomputed_data가 있으면 decompress_totals로 totals 복원하여 통계/SVG 생성.
-  - src/entry.py: 요청 처리 시 load_precomputed_from_kv(store, game_id, goal) 호출하여 precomputed_data 전달; run_simulation 호출 시 kv_store 및 precomputed_data 인자 전달; 로그에 "KV precomputed" / "live simulation" 출력.
+- 추가/변경 파일 설명
+  - PERFORMANCE.md: Assets 우선 전략(ASSETS 바인딩)과 Assets vs KV vs live 시뮬레이션의 성능/메모리/비용 분석, 권장 배포/테스트 절차를 기술. 예시: assets.fetch("/data/precomputed_game1_v2.json").json() 사용 및 압축 해제(decompress_totals) 타이밍 표기.
+  - assets/data/precomputed_game1_v2.json: GAME_ID=1용 빈도 리스트 포맷(v2). CDN 캐싱을 통해 Assets가 최우선 데이터 소스가 되도록 추가.
+  - wrangler.toml: ASSETS 바인딩 섹션 추가(assets 디렉토리 자동 업로드 및 엣지 캐싱).
+
+---
 
 ## Workflow
 
-### 1. 클라이언트 요청 흐름 (업데이트)
+### 1. 클라이언트 요청 흐름 (업데이트: Assets 우선)
 ```
 사용자 입력 (index.html)
     ↓
@@ -57,130 +63,167 @@ webpage/
     ↓
 POST /api/simulate
     ↓
-entry.py (라우팅)
+entry.py (라우팅, 요청 검증, CORS)
     ↓
-1) KV 사전계산 조회 시도: await load_precomputed_from_kv(store, game_id, goal)
-    ├─ if precomputed_data: decompress_totals -> totals (압축 복원)
-    └─ else: build_pity_cdf (if missing in KV), sample_total_draws -> totals (live 샘플링)
+1) Assets(ASSETS 바인딩)에서 사전계산 조회 시도:
+    - path = f"/data/precomputed_game{game_id}_v2.json" 또는 단일 파일 내 goal 인덱스 조회
+    - full_data = await ASSETS.fetch(path).json()
+    - if goal entry found: min_val, freq_list -> totals = decompress_totals(min_val, freq_list)
+      → n_sims = len(totals)  (Assets 경로)
+    └─ else: 2) KV에서 사전계산 조회 시도:
+         - precomputed_data = await load_precomputed_from_kv(kv_store, game_id, goal)
+         - if precomputed_data: min_val, freq_list -> totals = decompress_totals(min_val, freq_list)
+         - else: 3) 라이브 샘플링 경로
+                 - build_pity_cdf(...)  # 필요한 경우 CDF 생성/캐싱
+                 - totals = sample_total_draws(cdf, N_SIMS)  # Walker's Alias Method 사용 (compute.sample_total_draws)
     ↓
-run_simulation(...)  # cdf, kv_store, precomputed_data 전달
+run_simulation(..., precomputed_data=precomputed_data_or_assets, kv_store=store)
+    - run_simulation 내부: precomputed path면 decompress_totals를 통해 통계/SVG 생성 루틴으로 직행
+    - live path면 sample_total_draws → summarize → make_hist_svg
     ↓
-summarize(...) & make_hist_svg(...)
+summarize(totals, obs_total) & make_hist_svg(totals, obs_total)
     ↓
-JSON 응답 (summary + image_svg)
+JSON 응답 { summary: {...}, image_svg: "<svg...>" }
     ↓
 결과 렌더링 (app.js)
 ```
 
-- 주요 라우트 (변경된 동작 요약)
-  - POST /api/simulate: JSON body { "GAME_ID", "GOAL", "OBS_TOTAL" } 전송 → entry.py에서 입력 검증 후:
-    - load_precomputed_from_kv(store, game_id, goal)로 KV에 저장된 압축 결과 조회 시도
-    - precomputed_data가 존재하면 run_simulation(..., precomputed_data=...)에서 decompress_totals로 복원하여 통계/시각화 생성
-    - 없으면 기존 live 시뮬레이션(sample_total_draws, Alias Method) 실행
+- 주요 라우트 (동작 요약)
+  - POST /api/simulate
+    - JSON body: { "GAME_ID", "GOAL", "OBS_TOTAL" }
+    - 처리:
+      1. ASSETS에서 해당 게임/goal 사전계산 JSON을 먼저 조회 (assets.fetch 경로)
+      2. 실패하면 KV (load_precomputed_from_kv) 폴백
+      3. 둘 다 없으면 라이브 시뮬레이션(sample_total_draws using Alias Method)
+    - 반환: summary + image_svg (SVG 문자열)
   - GET /api/health: 상태 확인 ({"ok": true}) — 유지
 
-### 2. 시뮬레이션 파이프라인 (변경 요약)
+### 2. 시뮬레이션 파이프라인 (요약)
 - 2-1. CDF 구성 (build_pity_cdf)
-  - Pity 시스템 기반 확률 모델링
-  - BASE_P + 가속 구간 (ACCEL_START 이후)
-  - 생존 확률 기반 PMF → CDF 변환
+  - Pity 시스템 기반 확률 모델링: BASE_P, ACCEL_START, ACCEL_STEP, MAX_T 파라미터
+  - 생존 확률 기반 PMF → CDF 변환 (compute.build_pity_cdf)
 - 2-2. 입력 데이터 소스 분기 (신규)
-  - KV 사전계산 사용: load_precomputed_from_kv → 반환 [min_val, freq_list] → decompress_totals(min_val, freq)로 totals 복원 (n_sims = len(totals))
-  - 라이브 샘플링: sample_total_draws (Walker’s Alias Method)로 totals 생성
+  - Assets(ASSETS 바인딩) 우선: assets.fetch("/data/precomputed_game{1,2}_v2.json") → goal 인덱스 조회 → decompress_totals(min_val, freq)
+  - KV 폴백: load_precomputed_from_kv(kv_store, game_id, goal) (async)
+  - 라이브 샘플링: sample_total_draws (Alias Method) 호출
 - 2-3. 몬테카를로 샘플링 (sample_total_draws)
-  - Walker's Alias Method (O(1) 샘플링, 전처리 O(n)) — 함수명: sample_total_draws
+  - Walker's Alias Method: O(1) 샘플링 (전처리 O(n)) — 함수명: sample_total_draws
   - 추가 에피소드 계산: 이항분포 B(7, CEIL_RATIO)
   - 기본 샘플 수: N_SIMS (기본 1,000,000, configurable)
 - 2-4. 통계 분석 (summarize)
-  - mean, std, percentile rank 계산 — summarize 함수 유지
+  - mean, std, percentile rank 등 (summarize 함수)
 - 2-5. 시각화 (make_hist_svg)
   - 히스토그램 density 계산, SVG path 생성 (기본 800×450px)
   - 관측값 표시(빨간 수직선), SVG 문자열 반환 (image_svg)
 
-### 3. README 자동 갱신 파이프라인 (CI / 개발 워크플로우)
-- 위치: .github/scripts/update_readme.py (기존)
-- 기능: 변경된 파일 diff를 LLM에 전달하여 README의 자동 갱신 블록 생성 (OpenAI Responses API 사용, token_param max_output_tokens=6000, tenacity 재시도)
-- 로컬 실행 예시:
-```bash
-python .github/scripts/update_readme.py --base-sha <base> --head-sha <head>
+### 3. 배포 / 운영 관련 (Assets + KV + Worker)
+- wrangler.toml: ASSETS 바인딩 추가 확인
+```toml
+[assets]
+directory = "./assets"
+binding = "ASSETS"
 ```
-
-### 4. KV 업로드 및 배포/운영(신규 절차)
-- KV 네임스페이스 생성/바인딩(초기 설정)
+- KV 네임스페이스 생성/바인딩
 ```bash
 npx wrangler kv:namespace create "GLOBAL_STORE"
 # wrangler.toml에 바인딩 추가: [[kv_namespaces]] binding = "GLOBAL" id = "<namespace-id>"
 ```
-- precomputed JSON을 KV로 업로드 (kv-upload 도구)
+- Assets 기반 precomputed 파일 배포 (자동으로 CDN에 업로드됨)
 ```bash
-# 예: kv-upload 스크립트 사용 (wrangler 로그인 및 네임스페이스 권한 필요)
-cd kv-upload
-node upload-game-data.js
-# (스크립트 내부 설정: JSON_FILE_PATH, NAMESPACE_ID, KEY_PREFIX)
+# assets/ 디렉토리(./assets/data/precomputed_game1_v2.json 등)를 포함하여 배포
+npx wrangler publish  # 또는 npx wrangler deploy
 ```
-- 업로드 확인
+- precomputed JSON을 KV로 업로드 (운영 시 KV 폴백용)
+```bash
+cd kv-upload
+node upload-game-data.js  # 설정: JSON_FILE_PATH, NAMESPACE_ID, KEY_PREFIX
+```
+- 업로드/검증 명령
 ```bash
 npx wrangler kv key list --namespace-id="<NAMESPACE_ID>" --prefix="game1_"
 npx wrangler kv key get --namespace-id="<NAMESPACE_ID>" "game1_5"
-```
-- Worker 배포
-```bash
 npx wrangler deploy
 ```
+
+---
 
 ## Features
 
 ### 핵심 기능 (핵심 5개 항목)
 
 1. 실시간 몬테카를로 시뮬레이션
-   - 기본 엔진: N_SIMS(기본 1,000,000) 기반 시뮬레이션. 핵심 함수: sample_total_draws, build_pity_cdf, summarize.
-   - Walker's Alias Method를 이용한 O(1) 샘플링 (compute.py 구현).
-   - SVG 히스토그램(make_hist_svg) 자동 생성.
+   - 엔진: N_SIMS(기본 1,000,000) 기반 샘플링을 지원. 핵심 함수: sample_total_draws, build_pity_cdf, summarize.
+   - Walker's Alias Method로 O(1) 샘플링 구현 (compute.preprocess_alias / compute.sample_total_draws).
+   - SVG 히스토그램 자동 생성 (compute.make_hist_svg).
 
-2. KV 기반 사전계산(Precomputed) 통합 (신규)
-   - entry.py가 요청 시 load_precomputed_from_kv(store, game_id, goal)를 호출하여 KV에서 압축된 빈도 리스트([min_val, freq_list]) 로드 시도.
-   - precomputed_data 존재 시 run_simulation은 decompress_totals(min_val, freq)로 totals 복원하여 통계/시각화 즉시 반환 — latency 대폭 개선.
-   - KV 키 형식: game{game_id}_{goal} (예: game1_5). 데이터 포맷: [min_val, [freq0, freq1, ...]].
+2. Assets 기반 사전계산(Precomputed) 우선 전략 (신규)
+   - ASSETS 바인딩(assets/)에 precomputed_game{1,2}_v2.json을 배포하여 엣지에서 직접 읽음.
+   - entry.py는 먼저 ASSETS.fetch("/data/precomputed_game{game_id}_v2.json") 시도 → goal 인덱스에서 [min_val, freq_list]를 추출 → decompress_totals로 totals 복원.
+   - Assets 캐시 히트 시 응답 지연을 대폭 단축(응답 ~5-8ms 목표).
 
-3. 다중 게임 모드 지원
-   - GAME_ID=1: CEIL_RATIO=0.5, MAX_T=80, BASE_P=0.008
-   - GAME_ID=2: CEIL_RATIO=0.55, MAX_T=90, BASE_P=0.006
-   - Pity 가속 구간(ACCEL_START, ACCEL_STEP)은 build_pity_cdf에서 처리.
+3. KV 기반 사전계산 폴백 및 운영 툴링
+   - load_precomputed_from_kv(kv_store, game_id, goal) 비동기 함수로 KV 조회 지원.
+   - kv-upload/upload-game-data.js: 대량 precomputed JSON을 KV에 일괄 업로드하는 스크립트.
+   - kv-upload/worker-game-data.ts: KV 조회용 예제 Worker (운영/검증용).
 
-4. 인터랙티브 웹 UI
-   - 파라미터 입력: GAME_ID, GOAL, OBS_TOTAL
+4. 다중 게임 모드 및 Pity 모델링
+   - GAME_ID=1/2 등 다중 모드 지원 (예: CEIL_RATIO, MAX_T, BASE_P 값)
+   - Pity 가속(ACCEL_START, ACCEL_STEP) 및 확률 조합은 build_pity_cdf에서 처리.
+
+5. 인터랙티브 웹 UI 및 결과 내보내기
+   - 입력: GAME_ID, GOAL, OBS_TOTAL
    - 실시간 요약(평균/표준편차/백분위)과 SVG 렌더링
-   - SVG/JSON 다운로드 기능
-
-5. KV 업로드 툴링 및 운영 지원 (신규)
-   - kv-upload/upload-game-data.js: precomputed JSON을 읽어 wrangler kv key put로 일괄 업로드.
-   - kv-upload/worker-game-data.ts: KV 읽기용 예제 Worker 제공 (운영 시 API로서 활용 가능).
-   - 운영 커맨드 예시 포함(KV key list/get/delete).
+   - SVG/JSON 다운로드 및 클라이언트 사이드 렌더링 (app.js)
 
 ### 기술적 특징
 
 알고리즘
-- Walker's Alias Method: O(1) 샘플링 (전처리 O(n)) — compute.py 내 preprocess_alias/sample_total_draws.
-- 인라인 이항분포 샘플링: 추가 에피소드 계산에 B(7, CEIL_RATIO) 사용.
-- 빈도 리스트 압축 (v2): 1,000,000개의 결과를 [min_val, freq_list]로 압축하여 저장 및 전송(압축률 약 99% 수준).
+- Walker's Alias Method: O(1) 샘플링 (전처리 O(n)) — compute.preprocess_alias / sample_total_draws.
+- 이항분포 샘플링: 추가 에피소드 계산에 B(7, CEIL_RATIO) 사용.
+- 압축 포맷(v2): [min_val, freq_list] 형식으로 1,000,000개 이상의 샘플 빈도를 효율적으로 저장/전송.
 
-성능
-- KV 사전계산 사용 시 응답 시간: ~50ms(환경 의존). (KV_INTEGRATION.md 성능 표 참조)
-- 라이브 시뮬레이션: 수초 단위(환경 및 N_SIMS에 따라 5~10s).
-- SVG 생성(make_hist_svg): <100ms 목표.
-- KV 캐시 히트 시 CDF 재계산/샘플링 경로를 건너뛰어 응답 시간 단축.
+성능 (요약)
+- Assets(ASSETS 바인딩) 사용 시: 응답 시간 약 ~5-8ms (assets.fetch 1-3ms + 압축 해제 20ms + 통계 5ms 기준 최적화; PERFORMANCE.md 참조).
+- KV 조회 경로: 대략 40-50ms (네트워크 왕복 포함, 환경 의존).
+- 라이브 시뮬레이션: 수초(환경/설정에 따라 5~10초).
+- SVG 생성(make_hist_svg): 목표 <100ms.
 
 보안 및 안정성
 - CORS 헤더 설정 (entry.py 및 worker-game-data.ts).
-- JSON 입력 검증 (entry.py: 요청 body 파싱/정수 변환 검증).
-- 에러 로깅 및 트레이스백(에러 발생 시 상세 로그 출력).
+- JSON 입력 검증 (entry.py: 요청 body 파싱/정수 변환/범위 체크).
+- 에러 로깅 및 예외 처리 강화 (load_precomputed_from_kv 내부 예외 캐치 등).
 - KV 사용 시 주의: eventual consistency, 읽기 비용 제약(플랜별 제한).
 
 CI / 도구
-- README 자동 갱신 스크립트(.github/scripts/update_readme.py): OpenAI Responses API(client.responses.create) 사용, token_param max_output_tokens=6000, tenacity 재시도 사용.
-- KV 업로드 스크립트 및 예제 Worker로 사전계산 데이터를 운영 환경에 손쉽게 반영 가능.
+- README 자동 갱신 스크립트(.github/scripts/update_readme.py): 변경 diff를 LLM에 전달하여 README 자동 갱신.
+- PERFORMANCE.md: 배포/운영 시 Assets 우선 전략과 비용/CPU 분석 제공.
+- kv-upload 툴: precomputed 데이터의 운영 반영을 자동화.
+
+---
 
 ## Versions
+
+### v2.3 (2025-10-17)
+**주요 변경사항**
+- Assets 기반 사전계산 추가: assets/data/precomputed_game1_v2.json 및 precomputed_game2_v2.json 추가(ASSETS 바인딩을 통해 엣지에서 직접 제공).
+- PERFORMANCE.md 추가: Assets 우선 전략(ASSETS 바인딩), Assets vs KV vs live의 성능/메모리/비용 분석 문서화.
+- Workflow 업데이트: entry.py 처리 흐름이 Assets -> KV -> live 순서로 변경(Assets fetch 우선).
+- wrangler.toml에 ASSETS 바인딩([assets] directory = "./assets", binding = "ASSETS") 권장/문서화.
+
+**최적화**
+- Assets(전역 CDN)에서 사전계산을 읽으면 응답 시간 대폭 단축(수백 ms → ~5-8ms).
+- Assets 캐시 히트 시 CDF/샘플링 경로(전처리)를 건너뜀으로써 CPU 사용량과 비용 절감.
+- precomputed v2 빈도 리스트 포맷을 통해 네트워크/스토리지 효율 개선(파일 크기: game1 ~102KB, game2 ~117KB).
+
+**버그 수정 / 안정성 개선**
+- Assets와 KV 경로 병행 시 예외/파싱 로직 보강(Assets JSON 파싱 실패 시 KV 폴백, 로깅 강화).
+- kv-upload 스크립트의 임시 파일 처리 안정화(대용량 업로드 중 안정성 향상).
+
+**새 기능**
+- PERFORMANCE.md: 배포 체크리스트, 로컬/실서버 테스트 예시, 추가 최적화 옵션(Brotli, 파일 분리, 메모리 캐시) 제시.
+- assets/data/* 로 precomputed 파일 배포 가능 — 엣지에서 직접 읽어 latency 최적화.
+
+---
 
 ### v2.2 (2025-10-17)
 **주요 변경사항**
@@ -217,6 +260,8 @@ CI / 도구
 **버그 수정**
 - 구버전 OpenAI 호출(choices/message 기반) 호환성 문제 수정.
 
+---
+
 ### v2.0 (2025-10-14)
 **주요 변경사항**
 - Cloudflare Workers Python 런타임으로 전환.
@@ -232,6 +277,8 @@ CI / 도구
 - JSON 파싱 실패 시 에러 핸들링 강화.
 - SVG Blob URL 관련 메모리 누수 완화.
 
+---
+
 ### v1.0 (Initial Release)
 - 기본 몬테카를로 시뮬레이션 엔진
 - 정규분포 피팅 기능
@@ -240,4 +287,4 @@ CI / 도구
 - 사전 계산 데이터 생성 스크립트
 <!-- AUTO-UPDATE:END -->
 
-<!-- LAST_PROCESSED_SHA: d52a3d952e8f654041623dc56efcadb7f9b95d05 -->
+<!-- LAST_PROCESSED_SHA: 35b2de312034ca2553f992df8a8c304d019bb3a9 -->
