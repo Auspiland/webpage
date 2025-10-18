@@ -27,7 +27,7 @@ webpage/
 │       └── precomputed_game2_v2.json       # GAME_ID=2 압축 사전계산 데이터 (v2, 빈도 리스트)
 │
 ├── src/                                    # 백엔드 로직 (Python Workers)
-│   ├── entry.py                            # Workers 진입점 (라우팅, CORS, Assets 우선 조회 -> 현재는 Assets에 없으면 400 오류 반환). 변경: load_precomputed_from_assets 호출; KV 폴백/라이브 샘플링 비활성화
+│   ├── entry.py                            # Workers 진입점 (라우팅, CORS, Assets 우선 조회 -> load_precomputed_from_assets 사용; Assets에 없으면 400 오류 반환)
 │   └── logic/                              # 시뮬레이션 코어 로직
 │       ├── __init__.py
 │       ├── compute.py                      # 시뮬레이션 엔진 및 유틸 (CDF 구성, Alias Method, SVG 생성)
@@ -306,4 +306,4 @@ CI / 도구
 - 사전 계산 데이터 생성 스크립트
 <!-- AUTO-UPDATE:END -->
 
-<!-- LAST_PROCESSED_SHA: b76faee60b0f0bdb945ad5748fc8585ace730087 -->
+<!-- LAST_PROCESSED_SHA: afe95bfa25dbd894625e4594574e28d151eeea26 -->
