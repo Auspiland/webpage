@@ -91,7 +91,12 @@ class Default(WorkerEntrypoint):
                     precomputed_data=precomputed_data
                 )
                 request_timings["3_run_simulation_total_ms"] = (time.perf_counter() - t3) * 1000
-
+            except Exception as e:
+                import traceback
+                error_details = traceback.format_exc()
+                print(f"[Error #{count}] {error_details}")
+                return Response.json({"ok": False, "error": "01_ "+str(e)}, status=400, headers=CORS)
+            try:
                 # 데이터 소스 결정
                 if precomputed_data:
                     data_source = "Assets precomputed"
@@ -114,7 +119,7 @@ class Default(WorkerEntrypoint):
                 import traceback
                 error_details = traceback.format_exc()
                 print(f"[Error #{count}] {error_details}")
-                return Response.json({"ok": False, "error": str(e)}, status=400, headers=CORS)
+                return Response.json({"ok": False, "error": "02_ "+str(e)}, status=400, headers=CORS)
 
             # 권장: base64 data URL 대신 '생 SVG 문자열'을 그대로 전달
             # 프런트에서 Blob(URL.createObjectURL)로 <img src>에 붙이세요.

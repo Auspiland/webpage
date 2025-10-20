@@ -141,6 +141,7 @@ Analyze the diff and update **ALL FOUR SECTIONS** as needed:
 - Update file tree if files were added/removed/moved
 - Add descriptions for new files
 - Use tree format with comments (e.g., `├── file.py  # description`)
+- Comment only the important points briefly
 
 ### Workflow
 - Update if API endpoints changed

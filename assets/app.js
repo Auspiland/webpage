@@ -111,7 +111,7 @@
     console.log("========================================");
     console.log(`📡 Fetch duration: ${(fetchEndTime - fetchStartTime).toFixed(2)} ms`);
     console.log(`📦 JSON parse duration: ${(parseEndTime - parseStartTime).toFixed(2)} ms`);
-    console.log(`⏱️  Total client duration: ${(clientEndTime - clientStartTime).toFixed(2)} ms`);
+    console.log(`⏱️ Total client duration: ${(clientEndTime - clientStartTime).toFixed(2)} ms`);
     console.log("----------------------------------------");
 
     if (data.timings) {
@@ -139,9 +139,9 @@
   }
 
   function getPercentileColor(percentile) {
-    if (percentile >= 95) return "#FFD700"; // 금색
-    if (percentile >= 90) return "#4169E1"; // 파란색
-    if (percentile >= 50) return "#32CD32"; // 초록색
+    if (percentile >= 95) return "#FFD700";    // 금색
+    if (percentile >= 90) return "#4169E1";   // 파란색
+    if (percentile >= 50) return "#32CD32";  // 초록색
     if (percentile >= 10) return "#FF8C00"; // 주황색
     return "#DC143C"; // 빨강색
   }
