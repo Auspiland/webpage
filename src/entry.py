@@ -88,8 +88,6 @@ class Default(WorkerEntrypoint):
                     game_id=game_id,
                     goal=goal,
                     obs_total=obs_tot,
-                    cdf=cdf,
-                    kv_store=store,
                     precomputed_data=precomputed_data
                 )
                 request_timings["3_run_simulation_total_ms"] = (time.perf_counter() - t3) * 1000
