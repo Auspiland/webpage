@@ -97,6 +97,7 @@
     }
     const parseEndTime = performance.now();
 
+    // 에러 체크를 타이밍 출력 전에 수행
     if (!res.ok || !data?.ok) {
       const msg = (data && (data.error || data.message)) || `HTTP ${res.status}`;
       throw new Error(msg);
@@ -104,7 +105,7 @@
 
     const clientEndTime = performance.now();
 
-    // ===== 타이밍 정보 출력 =====
+    // ===== 타이밍 정보 출력 (성공 시만) =====
     console.log("========================================");
     console.log("🕐 TIMING INFORMATION (Client Side)");
     console.log("========================================");
