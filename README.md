@@ -21,39 +21,39 @@ webpage/
 ├── assets/                                 # 정적 파일 (프론트엔드 + precomputed 데이터, CDN에 배포됨)
 │   ├── index.html                          # 메인 HTML 페이지 (GOAL input에 max="20" 추가)
 │   ├── app.js                              # 클라이언트 로직 (API 호출, UI 업데이트, SVG 렌더링).
-│   │                                         클라이언트 측 타이밍 계측 추가: runSimulate에서 clientStart/ fetch/parse/total 측정. 이제 성공 응답일 때만 타이밍 출력. 에러 체크를 타이밍 출력 전에 수행.
+│   │                                         # 변경: runSimulate에서 clientStart/fetch/parse/total 타이밍 계측. 이제 '성공 응답'일 때만 타이밍 콘솔 출력; 에러가 있으면 타이밍 출력 전에 throw.
 │   ├── styles.css                          # 스타일시트
 │   └── data/
-│       ├── precomputed_game1_v2.json       # GAME_ID=1 압축 사전계산 데이터 (v2, 빈도 리스트) — Assets 우선 읽기 대상
-│       └── precomputed_game2_v2.json       # GAME_ID=2 압축 사전계산 데이터 (v2, 빈도 리스트)
+│       ├── precomputed_game1_v2.json       # GAME_ID=1 압축 사전계산 데이터 (v2, [min_val, freq_list]) — ASSETS 우선 읽기 대상
+│       └── precomputed_game2_v2.json       # GAME_ID=2 압축 사전계산 데이터 (v2, [min_val, freq_list])
 │
 ├── src/                                    # 백엔드 로직 (Python Workers)
-│   ├── entry.py                            # Workers 진입점 (라우팅, CORS, Assets 우선 조회)
-│   │                                         - 변경/중요: 요청/컴퓨트 타이밍 계측 추가(request_timings 수집). run_simulation 호출을 try/except로 감싸며 예외 시 traceback을 print(f"[Error #{count}] ...")로 로깅. 에러 응답은 디버깅용 접두사("01_", "02_")를 포함하여 반환.
+│   ├── entry.py                            # Workers 진입점 (라우팅, CORS, ASSETS 우선 조회)
+│   │                                         # 변경/중요: request-level 타이밍 수집(request_timings), run_simulation 호출을 try/except로 감싸 예외 발생 시 traceback을 print로 로깅. 에러 응답에 디버깅 접두사("01_"/"02_") 포함.
 │   └── logic/                              # 시뮬레이션/유틸 로직
 │       ├── __init__.py
 │       ├── compute.py                      # 런타임 경량화된 시뮬레이션 핸들러
-│       │                                        - 주요 역할: 압축 데이터(decompress_totals) 복원, summarize, make_hist_svg, run_simulation에서 타이밍 수집 후 (summary, svg, timings) 반환
-│       │                                        - 변경/중요: 라이브 샘플링(sample_total_draws) 및 CDF/alias 관련 전처리 함수는 제거되어 런타임 경로에서 사용되지 않음. run_simulation은 precomputed_data 필수(없으면 ValueError).
-│       ├── compute_not_used.py              # (신규/추가) 사용되지 않는/아카이브된 구현 모음 및 유틸:
-│       │                                        - compress_totals, build_pity_cdf, _build_alias_from_cdf, _alias_sample, _binomial_7, sample_total_draws 등 원래의 샘플링 및 사전계산 유틸리티 보관
-│       │                                        - load_precomputed_from_assets, load_precomputed_from_kv, generate_precomputed_data, save/load 유틸리티 포함(오프라인/관리/백오피스 용도)
-│       ├── precomputed_game1.json          # (보존용) GAME_ID=1 원본 사전 계산 데이터 (디버그/생성용) — 사용 중이진 않음
+│       │                                         # 제공 함수: decompress_totals, summarize, make_hist_svg, run_simulation
+│       │                                         # run_simulation 반환: (summary_dict, svg_string, timing_dict). 라이브 샘플링/alias 관련 함수 제거(런타임 미사용).
+│       ├── compute_not_used.py              # 아카이브/관리용 유틸 모음 (오프라인/백오피스 용)
+│       │                                         # 보관 함수: compress_totals, build_pity_cdf, _build_alias_from_cdf, _alias_sample, _binomial_7, sample_total_draws
+│       │                                         # I/O/전처리 유틸: load_precomputed_from_assets, load_precomputed_from_kv, generate_precomputed_data, save/load 등 — 운영자용/오프라인 precompute 생성 시 사용
+│       ├── precomputed_game1.json          # (보존용) GAME_ID=1 원본 사전 계산 데이터 (디버그/생성용)
 │       ├── precomputed_game2.json          # (보존용) GAME_ID=2 원본 사전 계산 데이터
 │       ├── precomputed_game1_v2.json       # GAME_ID=1 압축 데이터 (v2) - 빈도 리스트 형식 (assets/data/)
 │       └── precomputed_game2_v2.json       # GAME_ID=2 압축 데이터 (v2) - 빈도 리스트 형식 (assets/data/)
 │
-├── wrangler.toml                           # Cloudflare Workers 설정
+├── wrangler.toml                           # Cloudflare Workers 설정 (ASSETS 바인딩 + KV 네임스페이스)
 │   ├─ (ASSETS) [assets] directory = "./assets", binding = "ASSETS"  # Assets 바인딩: precomputed JSON을 엣지에서 직접 읽도록 설정됨
 │   └─ (KV) [[kv_namespaces]] binding = "GLOBAL" id = "<namespace-id>"  # KV 네임스페이스 바인딩 (운영/툴링용)
 └── README.md                               # 프로젝트 설명 및 API/개발 가이드 (자동 갱신 메커니즘 포함)
 ```
 
-- 중요 변경/주의점 (간단 요약)
-  - src/logic/compute.py: 런타임 경량화. run_simulation은 (summary_dict, svg_string, timing_dict) 반환.
-  - src/logic/compute_not_used.py: 구 샘플링/전처리/파일·KV 유틸 보관. entry.py는 일부 유틸(load_precomputed_from_assets 등)을 이쪽에서 import하도록 변경됨.
-  - src/entry.py: run_simulation 호출을 try/except로 감싸며, 예외 발생 시 traceback을 로그로 출력(print)하고 JSON 에러를 반환(에러 문자열에 "01_" / "02_" 접두사 부여).
-  - assets/app.js: 성공 응답일 때만 클라이언트 타이밍 출력. 에러가 있으면 타이밍 출력 이전에 에러 throw.
+- 중요 변경/요약 (간단)
+  - src/logic/compute.py: 런타임 경량화. run_simulation은 (summary_dict, svg_string, timing_dict) 반환하며, 내부 단계별 타이밍("1_validation_ms", "2_decompress_ms", "3_summarize_ms", "4_svg_generation_ms", "5_total_compute_ms")을 수집.
+  - src/logic/compute_not_used.py: 구 샘플링/전처리/파일·KV 유틸 보관. load_precomputed_from_assets/load_precomputed_from_kv 등 오프라인 유틸 포함. entry.py는 일부 유틸을 이 파일에서 import하도록 변경 가능.
+  - src/entry.py: run_simulation 호출을 try/except로 감싸며 예외 발생 시 traceback을 print로 로그 출력하고 JSON 에러를 반환(에러 문자열에 "01_"/"02_" 접두사).
+  - assets/app.js: 성공 응답일 때만 client-side 타이밍 출력. 에러 발생 시 타이밍 출력 전에 에러를 throw.
 
 ---
 
@@ -74,8 +74,8 @@ POST /api/simulate  (요청 body 예: {"GAME_ID":1,"GOAL":5,"OBS_TOTAL":30, "N_S
 entry.py (라우팅, 요청 검증, CORS, 서버 타이밍 계측)
     - request-level 타이밍 수집 시작(t_request_start)
     - JSON 파싱 후 request_timings["0_parse_request_ms"] 기록
-    - precomputed 로드 시 요청_timings["1_load_assets_ms"] 기록
-    - 주요 import 변경: run_simulation은 logic.compute에서, load_precomputed_from_assets/load_precomputed_from_kv/build_pity_cdf 등은 logic.compute_not_used에서 import
+    - precomputed 로드 시 request_timings["1_load_assets_ms"] 기록
+    - run_simulation 호출부는 try/except로 감싸여 있으며, 예외 발생 시 traceback을 print(f"[Error #{count}] ...")로 stdout에 로깅
     ↓
 1) ASSETS(엣지)에서 사전계산 조회 시도:
     - 호출: precomputed_data = await load_precomputed_from_assets(self.env.ASSETS, game_id, goal)
@@ -85,8 +85,9 @@ entry.py (라우팅, 요청 검증, CORS, 서버 타이밍 계측)
 run_simulation(..., precomputed_data=precomputed_data)
     - run_simulation은 precomputed_data 필수(없으면 ValueError)
     - 내부 처리: decompress_totals → summarize → make_hist_svg
-    - compute-level 단계별 타이밍 수집(compute_timings), 반환값: (summary, svg, compute_timings)
-    - entry.py에서 run_simulation 호출을 try/except로 감싸며 예외 발생 시 traceback을 print(f"[Error #{count}] ...")로 로그 출력하고 에러 JSON 반환
+    - compute-level 단계별 타이밍 수집(compute_timings) — 예: "1_validation_ms","2_decompress_ms","3_summarize_ms","4_svg_generation_ms","5_total_compute_ms"
+    - 반환값: (summary, svg, compute_timings)
+    - entry.py에서 run_simulation 호출을 try/except로 감싸며 예외 발생 시 traceback을 print로 로그 출력하고 에러 JSON 반환(에러 메시지에 "01_" / "02_" 접두사 가능)
     ↓
 entry.py:
     - request_timings["3_run_simulation_total_ms"] 등 추가 기록
@@ -100,16 +101,17 @@ entry.py:
     - 에러인 경우 타이밍 출력 전에 에러 throw
 ```
 
-- 주요 라우트 (변경점 요약)
+- 주요 라우트 (요약)
   - POST /api/simulate
     - 요청 body: { "GAME_ID", "GOAL", "OBS_TOTAL", "N_SIMS"?: int, "SEED"?: int, "BINS"?: int }
-    - 현재 처리 흐름:
-      1. ASSETS에서 precomputed JSON 파일의 goal 인덱스 조회(load_precomputed_from_assets from logic.compute_not_used).
+    - 처리 흐름:
+      1. ASSETS에서 precomputed JSON 파일의 goal 인덱스 조회 (load_precomputed_from_assets — 유틸은 src/logic/compute_not_used.py에 보관).
       2. 항목이 없으면 400 에러 반환(실시간 시뮬레이션 및 KV 폴백 비활성화).
       3. 항목이 있으면 decompress_totals → run_simulation(요약/시각화 + compute 타이밍) → entry.py가 request 타이밍을 덧붙여 JSON 응답 반환(응답에 "timings" 필드 포함).
     - 에러/예외 처리:
-      - run_simulation 호출부에 try/except가 추가되어, 예외 발생 시 traceback을 stdout에 print하고 에러 코드를 포함한 JSON을 반환(예: {"ok": False, "error": "01_ <message>"} 또는 "02_ ...").
-  - GET /api/health: 상태 확인 ({"ok": true}) — 유지
+      - run_simulation 호출부에 try/except가 추가되어, 예외 발생 시 traceback을 stdout에 print하고 에러 코드를 포함한 JSON을 반환(예: {"ok": False, "error": "01_<message>"}).
+  - GET /api/health
+    - 상태 확인: {"ok": true}
 
 ### 2. 시뮬레이션 파이프라인 (업데이트 요약)
 - 2-1. 입력 검증
@@ -120,18 +122,18 @@ entry.py:
   - 라이브 샘플링: compute_not_used.py에 샘플링 알고리즘 보관(아카이브). 런타임에서는 미사용.
 - 2-3. 통계/타이밍/시각화
   - totals 복원(decompress_totals) → summarize(mean, std, percentiles 등) → make_hist_svg(히스토그램 SVG 생성)
-  - run_simulation은 compute_timings(예: "1_validation_ms", "2_decompress_ms", "3_summarize_ms", "4_svg_generation_ms", "5_total_compute_ms")를 수집하여 반환
+  - run_simulation은 compute_timings(예: "1_validation_ms", "2_decompress_ms", "3_summarize_ms", "4_svg_generation_ms", "5_total_compute_ms")을 수집하여 반환
   - entry.py는 request-level 타이밍(request_timings)을 수집하여 compute_timings과 병합 ⇒ 응답의 "timings" 필드 제공
-  - 클라이언트는 fetch/parse/total 타이밍을 측정하고, 서버 타이밍을 받아 콘솔에 정렬 출력
+  - 클라이언트는 fetch/parse/total 타이밍을 측정하고, 서버 타이밍을 받아 콘솔에 정렬 출력(성공 시)
 
-### 3. 배포 / 운영 관련 (변경 없음 / 권장)
-- wrangler.toml: ASSETS 바인딩 필요 확인 (변경 없음)
+### 3. 배포 / 운영 관련 (요약)
+- wrangler.toml: ASSETS 바인딩 확인 (변경 없음)
 ```toml
 [assets]
 directory = "./assets"
 binding = "ASSETS"
 ```
-- CDN(Assets) 기반 precomputed 파일 배포 (엣지에서 직접 읽음)
+- 배포 (Assets 포함)
 ```bash
 # assets/ 디렉토리(./assets/data/precomputed_game1_v2.json 등)를 포함하여 배포
 npx wrangler publish  # 또는 npx wrangler deploy
@@ -141,16 +143,12 @@ npx wrangler publish  # 또는 npx wrangler deploy
 npx wrangler kv:namespace create "GLOBAL_STORE"
 # wrangler.toml에 바인딩 추가: [[kv_namespaces]] binding = "GLOBAL" id = "<namespace-id>"
 ```
-- precomputed JSON을 KV로 업로드 (운영 시 수동/백오피스 용도; 현재 런타임에서 KV 폴백 사용하지 않음)
+- precomputed JSON을 KV로 업로드 (관리자용; 런타임은 KV 폴백 미사용)
 ```bash
 cd kv-upload
 node upload-game-data.js  # 설정: JSON_FILE_PATH, NAMESPACE_ID, KEY_PREFIX
-```
-- 업로드/검증 명령
-```bash
 npx wrangler kv key list --namespace-id="<NAMESPACE_ID>" --prefix="game1_"
 npx wrangler kv key get --namespace-id="<NAMESPACE_ID>" "game1_5"
-npx wrangler deploy
 ```
 
 ---
@@ -159,60 +157,93 @@ npx wrangler deploy
 
 ### 핵심 기능 (핵심 5개 항목)
 
-1. 실시간 몬테카를로 시뮬레이션 (운영 경로에서는 비활성화, 코드 보존)
-   - 관련 함수(보존 위치): sample_total_draws, _build_alias_from_cdf, _alias_sample, _binomial_7 등은 src/logic/compute_not_used.py에 보관(오프라인/개발용).
-   - 런타임 정책: src/logic/compute.run_simulation은 precomputed_data(압축 빈도 리스트)를 필수로 요구하며, 실시간 샘플링 경로는 배포 시 비활성화되어 있음.
-   - 설계 의도: 오프라인에서 대규모 precompute를 생성(예: N_SIMS=100,000)하여 Assets에 배포하고 엣지에서 빠르게 응답.
+1. 런타임 경량화된 요약/시각화 파이프라인
+   - 주요 구현: src/logic/compute.run_simulation — precomputed_data를 이용해 decompress_totals → summarize → make_hist_svg를 실행.
+   - 반환형: (summary_dict, svg_string, timing_dict). timing_dict은 단계별 소요(ms)를 포함.
+   - 설계: 실시간 샘플링 대신 오프라인 precompute를 사용하여 엣지에서 빠른 응답 제공.
 
-2. Assets 기반 사전계산(Precomputed) 우선 전략 (운영 중심)
-   - ASSETS 바인딩을 통해 assets/data/precomputed_game{1,2}_v2.json에서 goal별 [min_val, freq_list]를 조회.
-   - 함수/엔드포인트: load_precomputed_from_assets(...) 호출 (현재 해당 유틸은 src/logic/compute_not_used.py에 보관되고 entry.py에서 호출).
-   - 장점: 엣지 fetch(일반적으로 ~1-3ms) + 압축 해제 → 즉시 통계/시각화(서버 내부 타이밍 측면에서 빠른 응답).
+2. ASSETS 기반 사전계산(Precomputed) 우선 전략
+   - 데이터 포맷: v2 압축 - [min_val, freq_list] (assets/data/precomputed_game{1,2}_v2.json).
+   - 로드 유틸: load_precomputed_from_assets (관리/오프라인 유틸은 src/logic/compute_not_used.py에 보관).
+   - 장점: 엣지에서 직접 파일 조회 → 빠른 압축 해제 및 통계/시각화 생성.
 
-3. 운영/관리용 KV 업로드 및 오프라인 툴
-   - kv-upload/upload-game-data.js: precomputed JSON을 KV에 업로드하는 관리자용 도구(운영/검증).
-   - compute_not_used.py 내부에 load_precomputed_from_kv, generate_precomputed_data 등 오프라인 유틸이 보관되어 있음.
-   - 주의: 현재 entry.py는 KV 폴백을 사용하지 않으므로 KV에 올려도 런타임에서 자동 조회되지 않음(운영 정책에 따라 변경 가능).
+3. 운영/관리용 오프라인 툴 및 KV 업로드
+   - kv-upload/upload-game-data.js: precomputed JSON을 KV에 업로드(관리자용).
+   - src/logic/compute_not_used.py: precompute 생성(generate_precomputed_data), compress/저장(save/load), KV I/O 관련 유틸 보관 — 오프라인/백오피스 용도.
 
-4. 다중 게임 모드 및 Pity 모델링 (파라미터화된 구성)
-   - GAME_TABLE 기반 파라미터 사용: CEIL_RATIO, MAX_T, BASE_P 등(이전 CDF 구성 함수는 아카이브된 상태지만 파라미터 테이블은 유지).
-   - 시스템은 precomputed 데이터(빈도 리스트)를 통해 다양한 goal/게임 설정을 빠르게 처리.
+4. 다중 게임 모드 및 파라미터화
+   - GAME_TABLE 기반 파라미터(예: CEIL_RATIO, MAX_T, BASE_P)는 유지되어 다양한 GAME_ID/GOAL 조합 지원.
+   - precomputed 데이터는 goal별로 생성되어 run_simulation이 이를 받아 처리.
 
-5. 웹 UI / 시각화 및 성능 계측
-   - 입력: GAME_ID, GOAL(1~20), OBS_TOTAL (assets/index.html, assets/app.js)
-   - 출력: summarize 결과(JSON) + make_hist_svg로 생성된 SVG 문자열
-   - 신규: 클라이언트 측 타이밍 로깅(assets/app.js)은 성공 응답일 때만 콘솔에 출력. 서버는 내부 단계별 타이밍(compute_timings)과 request-level 타이밍을 병합해 응답의 "timings" 필드로 제공 → 상세 프로파일링 및 디버깅 가능.
+5. 웹 UI / 시각화 및 엔드투엔드 성능 계측
+   - 입력: GAME_ID, GOAL, OBS_TOTAL (assets/index.html, assets/app.js)
+   - 출력: summary JSON + make_hist_svg로 생성된 SVG
+   - 성능 계측: 클라이언트(app.js)에서 fetch/parse/total 계측, 서버(entry.py + compute.py)에서 단계별 타이밍을 수집해 응답의 "timings" 필드로 제공.
 
 ### 기술적 특징
 
 알고리즘
-- Walker's Alias Method 및 고성능 샘플링 알고리즘:
-  - 원래 구현(전처리 및 O(1) 샘플링)은 compute_not_used.py에 보존되어 있으며, 필요시 오프라인/로컬 테스트에 재사용 가능.
-- 압축 포맷(v2):
-  - [min_val, freq_list] 형식으로 대규모 샘플 빈도를 효율적으로 저장/전송(Assets에 배포).
-- 통계 처리:
-  - summarize(totals, obs_total, n_sims)에서 평균, 표준편차, 백분위수 등을 산출. make_hist_svg는 히스토그램을 SVG로 렌더링.
+- Alias method 및 고성능 샘플링 알고리즘은 이전 구현에서 제공되며(src/logic/compute_not_used.py), 오프라인 precompute 생성 시 재사용 가능.
+- 압축 포맷(v2): [min_val, freq_list] 구조로 빈도 기반 저장을 최소화하여 엣지 전송 비용 절감.
 
-성능 / 계측 (요약)
-- 서버 측 타이밍 계측:
-  - entry.py: request-level 단계 타이밍(예: "0_parse_request_ms", "1_load_assets_ms", "2_cdf_cache_ms", "3_run_simulation_total_ms", "4_total_request_ms")
-  - compute.run_simulation: compute-level 단계 타이밍(예: "1_validation_ms", "2_decompress_ms", "3_summarize_ms", "4_svg_generation_ms", "5_total_compute_ms")
-  - 응답에 timings 딕셔너리 포함 → 운영/디버깅용 상세 프로파일링 가능
-- 클라이언트 측 타이밍:
-  - assets/app.js가 fetch/parse/total 소요를 측정하여 서버 타이밍과 함께 콘솔에 출력(성공 시)
-- 성능 기대치:
-  - ASSETS에서 사전계산 조회 시: 엣지 fetch + 압축 해제 → 매우 짧은 응답(자주 ~1-10ms 내부 컴퓨트 추가)
-  - KV 조회 또는 라이브 시뮬레이션(활성화된 경우): 더 높은 지연 가능(수십 ms~초)
+성능 / 계측
+- 서버 측 타이밍
+  - entry.py: request-level 타이밍 키 예: "0_parse_request_ms", "1_load_assets_ms", "3_run_simulation_total_ms", "4_total_request_ms"
+  - compute.run_simulation: compute-level 타이밍 예: "1_validation_ms", "2_decompress_ms", "3_summarize_ms", "4_svg_generation_ms", "5_total_compute_ms"
+  - 응답에 timings 딕셔너리 포함 → 상세 프로파일링 가능
+- 클라이언트 측 타이밍
+  - assets/app.js: fetch/parse/total 측정, 성공 응답 시 서버 timings과 함께 콘솔 출력
+- 성능 기대치
+  - ASSETS 조회 + decompress → 보통 매우 낮은 지연(대개 수 ms ~ 10ms 단위 내부 컴퓨트)
+  - 라이브 샘플링 또는 KV 폴백 활성화 시 지연 급증 가능(수십 ms ~ 초)
 
 보안 및 안정성
-- CORS 헤더 설정 및 입력 검증(entry.py 및 client-side) 유지
-- 서버는 precomputed 부재 시 명확한 400 응답 반환(메시지 포함)
-- 타이밍 정보은 디버깅 목적이며, 운영 환경에서는 민감 정보 노출 여부를 검토 후 필터링 권장
-- 예외/에러 처리 강화: entry.py에서 run_simulation/핵심 블록에 대해 traceback을 콘솔에 출력하고 에러 응답에 디버깅 접두사를 추가하여 문제 추적을 용이하게 함(운영 환경에서는 민감 정보 제거 권장)
+- CORS 헤더 설정 및 입력 검증(entry.py + client-side) 유지
+- precomputed 부재 시 명확한 400 응답 반환
+- 예외 처리: entry.py가 run_simulation 예외를 잡아 traceback을 stdout에 print하고 디버깅 접두사("01_"/"02_")를 에러 메시지에 포함하여 문제 추적을 돕도록 변경됨(운영 시 민감 정보 노출 여부 검토 및 필터링 권장)
 
 CI / 도구
 - README 자동 갱신 스크립트(.github/scripts/update_readme.py) 및 PERFORMANCE.md 참조
-- compute_not_used.py는 아카이빙된 구현을 포함하므로, 오프라인 precompute 생성/
+- compute_not_used.py는 아카이브된 구현과 오프라인 유틸을 포함하므로, precompute 생성/검증 시 참조 가능
+
+---
+
+## Versions
+
+### v2.6 (2025-10-20)  <-- 최신 변경사항
+**주요 변경사항**
+- 서버/클라이언트 프로파일링 강화
+  - src/entry.py에 request-level 타이밍 수집 로직 추가 및 request_timings 키 도입("0_parse_request_ms", "1_load_assets_ms", "3_run_simulation_total_ms", "4_total_request_ms").
+  - src/logic/compute.run_simulation이 compute-level 단계 타이밍을 수집하여 반환하도록 변경(반환값: (summary, svg, compute_timings)).
+  - entry.py는 compute_timings와 request_timings을 병합하여 API 응답의 "timings" 필드로 반환.
+- 런타임 안정성 및 에러 로깅
+  - entry.py에서 run_simulation 호출을 try/except로 감싸고 예외 발생 시 traceback을 print로 stdout에 로깅. 에러 응답 메시지에 디버깅 접두사("01_"/"02_")를 추가.
+- 런타임 경량화
+  - src/logic/compute.py에서 실시간 샘플링(alias/CDF/샘플링 함수 등)을 제거하고 decompress_totals / summarize / make_hist_svg 및 타이밍 수집에 집중.
+- 오프라인/관리용 유틸 보관
+  - src/logic/compute_not_used.py 추가: 기존 샘플링, alias method, compress/전처리, load/save 및 KV I/O 유틸을 아카이브하여 오프라인 precompute 생성 및 운영자 툴로 제공.
+
+**최적화**
+- 런타임 파일에서 불필요한 샘플링/전처리 코드 제거로 cold-start/임포트 비용 감소.
+- ASSETS 우선 전략으로 엣지에서 파일 직접 로드하여 전체 응답 지연 최소화.
+
+**버그 수정**
+- 클라이언트 타이밍 출력 조건 변경: assets/app.js가 '성공 응답'일 때만 타이밍 콘솔 출력하도록 수정(에러 발생 시 타이밍 출력 이전에 throw).
+- run_simulation 호출부에서 예외가 발생할 경우 명확한 에러 로그(print) 및 JSON 반환으로 운영 중 디버깅 용이성 개선.
+
+**새 기능**
+- 응답에 단계별 타이밍("timings") 포함 — 운영/성능 분석을 위해 서버/컴퓨트/클라이언트 타이밍을 종합 제공.
+
+---
+
+### v2.5 (2025-10-XX)
+(이전 릴리스 요약 — 변경 없음에서 유지되는 항목)
+- precomputed(v2) 포맷 도입: [min_val, freq_list]
+- Assets 기반 precompute 우선 전략
+- 오프라인 KV 업로드 도구(kv-upload)
+- 히스토그램 SVG 생성(make_hist_svg) 및 summarize 기능 제공
+
+<!-- AUTO-UPDATE:END -->
 <!-- AUTO-UPDATE:END -->
 
-<!-- LAST_PROCESSED_SHA: 21b8fd522bf31b74d7c5987f7a07d7e8f33b6b34 -->
+<!-- LAST_PROCESSED_SHA: 82d544a137a787f68d75cd4bbe9f7e6e09a602aa -->
