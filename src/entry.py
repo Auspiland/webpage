@@ -32,6 +32,10 @@ class Default(WorkerEntrypoint):
         # POST /api/simulate
         # body: { "GAME_ID": 1, "GOAL": 7, "OBS_TOTAL": 888, "N_SIMS"?: int, "SEED"?: int, "BINS"?: int }
         if path == "/api/simulate" and request.method == "POST":
+            import time
+            request_timings = {}
+            t_request_start = time.perf_counter()
+
             # 메모리 정리 강제 실행
             import gc
             gc.collect()
@@ -42,7 +46,9 @@ class Default(WorkerEntrypoint):
                 return Response.json({"ok": False, "error": f"import failed: {e}"}, status=500, headers=CORS)
 
             try:
+                t0 = time.perf_counter()
                 body = await request.json()
+                request_timings["0_parse_request_ms"] = (time.perf_counter() - t0) * 1000
             except Exception:
                 return Response.json({"ok": False, "error": "invalid json"}, status=400, headers=CORS)
 
@@ -52,7 +58,9 @@ class Default(WorkerEntrypoint):
                 obs_tot  = int(body.get("OBS_TOTAL"))
 
                 # Assets에서 사전 계산된 데이터 로드 (~1-3ms)
+                t1 = time.perf_counter()
                 precomputed_data = await load_precomputed_from_assets(self.env.ASSETS, game_id, goal)
+                request_timings["1_load_assets_ms"] = (time.perf_counter() - t1) * 1000
 
                 # 데이터가 없으면 에러 반환 (실시간 시뮬레이션 비활성화)
                 if not precomputed_data:
@@ -62,6 +70,7 @@ class Default(WorkerEntrypoint):
                     }, status=400, headers=CORS)
 
                 # CDF 캐싱 - 게임 ID별 키 사용
+                t2 = time.perf_counter()
                 cdf_key = f"cdf_{game_id}"
                 cdf_str = await store.get(cdf_key)
 
@@ -70,8 +79,11 @@ class Default(WorkerEntrypoint):
                 else:
                     cdf = build_pity_cdf(game_id)
                     await store.put(cdf_key, json.dumps(cdf))
+                request_timings["2_cdf_cache_ms"] = (time.perf_counter() - t2) * 1000
 
-                summary, svg = run_simulation(
+                # 시뮬레이션 실행 (compute.py에서 시간 측정)
+                t3 = time.perf_counter()
+                summary, svg, compute_timings = run_simulation(
                     game_id=game_id,
                     goal=goal,
                     obs_total=obs_tot,
@@ -79,6 +91,7 @@ class Default(WorkerEntrypoint):
                     kv_store=store,
                     precomputed_data=precomputed_data
                 )
+                request_timings["3_run_simulation_total_ms"] = (time.perf_counter() - t3) * 1000
 
                 # 데이터 소스 결정
                 if precomputed_data:
@@ -92,6 +105,12 @@ class Default(WorkerEntrypoint):
                 # 시뮬레이션 후 메모리 정리
                 gc.collect()
 
+                # 전체 요청 처리 시간
+                request_timings["4_total_request_ms"] = (time.perf_counter() - t_request_start) * 1000
+
+                # compute_timings를 request_timings에 병합
+                all_timings = {**request_timings, **compute_timings}
+
             except Exception as e:
                 import traceback
                 error_details = traceback.format_exc()
@@ -101,7 +120,7 @@ class Default(WorkerEntrypoint):
             # 권장: base64 data URL 대신 '생 SVG 문자열'을 그대로 전달
             # 프런트에서 Blob(URL.createObjectURL)로 <img src>에 붙이세요.
             return Response.json(
-                {"ok": True, "summary": summary, "image_svg": svg},
+                {"ok": True, "summary": summary, "image_svg": svg, "timings": all_timings},
                 headers=CORS
             )
 

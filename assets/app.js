@@ -49,6 +49,7 @@
   }
 
   async function runSimulate(payload) {
+    const clientStartTime = performance.now();
     console.log("===== runSimulate STARTED ======")
     console.log(payload)
     console.log(window.location.href)
@@ -58,6 +59,7 @@
       throw new Error(`GOAL must be between 1 and 20. Current value: ${payload.GOAL}`);
     }
 
+    const fetchStartTime = performance.now();
     const res = await fetch("/api/simulate", {
       method: "POST",
       headers: {
@@ -66,6 +68,7 @@
       },
       body: JSON.stringify(payload),
     });
+    const fetchEndTime = performance.now();
     console.log("res : ")
     console.log(res)
 
@@ -86,15 +89,41 @@
 
     // JSON 파싱
     let data;
+    const parseStartTime = performance.now();
     try {
       data = await res.json();
     } catch (e) {
       throw new Error(`JSON parse error (status ${res.status}): ${String(e)}`);
     }
+    const parseEndTime = performance.now();
 
     if (!res.ok || !data?.ok) {
       const msg = (data && (data.error || data.message)) || `HTTP ${res.status}`;
       throw new Error(msg);
+    }
+
+    const clientEndTime = performance.now();
+
+    // ===== 타이밍 정보 출력 =====
+    console.log("========================================");
+    console.log("🕐 TIMING INFORMATION (Client Side)");
+    console.log("========================================");
+    console.log(`📡 Fetch duration: ${(fetchEndTime - fetchStartTime).toFixed(2)} ms`);
+    console.log(`📦 JSON parse duration: ${(parseEndTime - parseStartTime).toFixed(2)} ms`);
+    console.log(`⏱️  Total client duration: ${(clientEndTime - clientStartTime).toFixed(2)} ms`);
+    console.log("----------------------------------------");
+
+    if (data.timings) {
+      console.log("🖥️  SERVER TIMING BREAKDOWN:");
+      console.log("----------------------------------------");
+
+      // 키를 정렬하여 순서대로 출력
+      const sortedKeys = Object.keys(data.timings).sort();
+      sortedKeys.forEach(key => {
+        const value = data.timings[key];
+        console.log(`  ${key}: ${value.toFixed(3)} ms`);
+      });
+      console.log("========================================");
     }
 
     return data;
