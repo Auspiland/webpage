@@ -41,7 +41,8 @@ class Default(WorkerEntrypoint):
             gc.collect()
 
             try:
-                from logic.compute import run_simulation, build_pity_cdf, load_precomputed_from_assets, load_precomputed_from_kv
+                from logic.compute import run_simulation
+                from logic.compute_not_used import build_pity_cdf, load_precomputed_from_assets, load_precomputed_from_kv
             except Exception as e:
                 return Response.json({"ok": False, "error": f"import failed: {e}"}, status=500, headers=CORS)
 

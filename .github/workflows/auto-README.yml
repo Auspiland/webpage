@@ -1,14 +1,15 @@
 name: Auto Update README with LLM
 
 on:
-  push:
-    paths:
-      - "src/**"              # 백엔드 로직 변경 감시
-      - "assets/**"           # 프론트엔드 변경 감시
-      - "wrangler.toml"       # 설정 파일 변경 감시
-      - "!README.md"          # README 변경은 제외 (루프 방지)
-      - "!.github/**"         # workflow 자체 변경 제외
+  # push:                       # push할 때마다 업데이트 하는 코드
+  #   paths:
+  #     - "src/**"              # 백엔드 로직 변경 감시
+  #     - "assets/**"           # 프론트엔드 변경 감시
+  #     - "wrangler.toml"       # 설정 파일 변경 감시
+  #     - "!README.md"          # README 변경은 제외 (루프 방지)
+  #     - "!.github/**"         # workflow 자체 변경 제외
   schedule:
+    - cron: "0 3 * * *"      # 매일 12:00 KST = 03:00 UTC
     - cron: "0 10 * * *"     # 매일 19:00 KST = 10:00 UTC
   workflow_dispatch:          # 수동 실행도 가능
 
