@@ -14,31 +14,31 @@ Cloudflare Workers 기반의 몬테카를로 시뮬레이션 웹 애플리케이
 ├── PERFORMANCE.md                          # 성능 분석 및 최적화 전략 문서
 ├── kv-upload/                              # KV 업로드 도구 및 예제 Worker (운영/배포 보조)
 │   ├── README.md                           # kv-upload 사용법 및 예제
-│   ├── upload-game-data.js                 # JSON -> KV 업로드 스크립트 (설정: JSON_FILE_PATH, NAMESPACE_ID, KEY_PREFIX)
+│   ├── upload-game-data.js                 # JSON -> KV 업로드 스크립트 (환경 변수: JSON_FILE_PATH, NAMESPACE_ID, KEY_PREFIX)
 │   └── worker-game-data.ts                 # KV에서 게임 데이터 읽는 예제 Worker (GET /game1/{key}, /game1/list, /game1/all)
 │
-webpage/
-├── assets/                                 # 정적 파일(프론트엔드 + precomputed 데이터, 엣지/ CDN 배포 대상)
-│   ├── index.html                          # 메인 HTML (GOAL 입력 max="20" 등)
-│   ├── app.js                              # 클라이언트 로직: API 호출, UI 업데이트, SVG 렌더링
-│   │                                         # 변경: runSimulate에서 clientStart/fetch/parse/total 타이밍 계측. 성공 응답일 때만 타이밍 콘솔 출력; 에러 발생 시 타이밍 출력 전에 throw.
-│   ├── styles.css                          # 스타일시트
-│   └── data/
-│       ├── precomputed_game1_v2.json       # GAME_ID=1 압축 사전계산 데이터 (v2: [min_val, freq_list]) — ASSETS 우선 로드 대상
-│       └── precomputed_game2_v2.json       # GAME_ID=2 압축 사전계산 데이터 (v2: [min_val, freq_list])
+├── webpage/
+│   ├── assets/                             # 정적 파일(프론트엔드 + precomputed 데이터, 엣지/CDN 배포 대상)
+│   │   ├── index.html                      # 메인 HTML (GOAL 입력 max="20" 등)
+│   │   ├── app.js                          # 클라이언트 로직: API 호출, UI 업데이트, SVG 렌더링
+│   │   │                                       # 변경: runSimulate에서 clientStart/fetch/parse/total 타이밍 계측. 성공 응답일 때만 타이밍 콘솔 출력; 에러 발생 시 타이밍 출력 전에 throw.
+│   │   ├── styles.css                      # 스타일시트
+│   │   └── data/
+│   │       ├── precomputed_game1_v2.json   # GAME_ID=1 압축 사전계산 데이터 (v2: [min_val, freq_list]) — ASSETS 우선 로드 대상
+│   │       └── precomputed_game2_v2.json   # GAME_ID=2 압축 사전계산 데이터 (v2: [min_val, freq_list])
 │
 ├── src/                                    # 백엔드 로직 (Python Workers)
 │   ├── entry.py                            # Workers 진입점: 라우팅, CORS, ASSETS 우선 조회, request-level 타이밍 수집
-│   │                                         # 변경/중요: run_simulation 호출을 try/except로 감싸 traceback을 print로 로깅. 에러 응답에 디버깅 접두사("01_"/"02_") 포함.
+│   │                                       # 변경/중요: run_simulation 호출을 try/except로 감싸 traceback을 print로 로깅. 에러 응답에 디버깅 접두사("01_"/"02_") 포함.
 │   └── logic/                              # 시뮬레이션/유틸 로직
 │       ├── __init__.py
 │       ├── compute.py                      # 런타임 경량화된 시뮬레이션 핸들러
-│       │                                         # 제공 함수: decompress_totals, summarize, make_hist_svg, run_simulation
-│       │                                         # run_simulation 반환: (summary_dict, svg_string, timing_dict)
-│       │                                         # 수집되는 compute 타이밍 예: "1_validation_ms","2_decompress_ms","3_summarize_ms","4_svg_generation_ms","5_total_compute_ms"
+│       │                                       # 제공 함수: decompress_totals, summarize, make_hist_svg, run_simulation
+│       │                                       # run_simulation 반환: (summary_dict, svg_string, timing_dict)
+│       │                                       # 수집되는 compute 타이밍 예: "1_validation_ms","2_decompress_ms","3_summarize_ms","4_svg_generation_ms","5_total_compute_ms"
 │       ├── compute_not_used.py              # 아카이브/관리용 유틸 (오프라인 precompute 생성, 샘플링/alias/CDF 구현 보관)
-│       │                                         # 보관 함수: compress_totals, build_pity_cdf, _build_alias_from_cdf, _alias_sample, _binomial_7, sample_total_draws
-│       │                                         # I/O/전처리: load_precomputed_from_assets, load_precomputed_from_kv, generate_precomputed_data, save/load 등 (운영자/오프라인 용)
+│       │                                       # 보관 함수: compress_totals, build_pity_cdf, _build_alias_from_cdf, _alias_sample, _binomial_7, sample_total_draws
+│       │                                       # I/O/전처리: load_precomputed_from_assets, load_precomputed_from_kv, generate_precomputed_data, save/load 등 (운영자/오프라인 용)
 │       ├── precomputed_game1.json          # (보존용) GAME_ID=1 원본 사전계산 데이터(디버그/생성용)
 │       ├── precomputed_game2.json          # (보존용) GAME_ID=2 원본 사전계산 데이터
 │       ├── precomputed_game1_v2.json       # assets/data에 복사된 GAME_ID=1 v2 압축 데이터
@@ -53,7 +53,7 @@ webpage/
 - 중요 포인트(요약)
   - src/logic/compute.run_simulation은 precomputed_data를 필수 인자로 받아 decompress_totals → summarize → make_hist_svg를 수행하고 (summary_dict, svg_string, timing_dict)를 반환.
   - compute.run_simulation은 단계별 compute 타이밍을 수집(예: "1_validation_ms", "2_decompress_ms", "3_summarize_ms", "4_svg_generation_ms", "5_total_compute_ms").
-  - entry.py는 request-level 타이밍(request_timings 키들) 수집 및 run_simulation 호출을 try/except로 감싸 traceback을 stdout에 print. 에러 메시지에 "01_"/"02_" 접두사 부착 가능.
+  - entry.py는 request-level 타이밍(request_timings 키들)을 수집 및 run_simulation 호출을 try/except로 감싸 traceback을 stdout에 print. 에러 메시지에 "01_"/"02_" 접두사 부착 가능.
   - assets/app.js는 클라이언트 타이밍을 계측하되 '성공 응답'일 때만 콘솔에 정렬 출력하며 에러 시 타이밍 출력 전에 throw 처리.
 
 ## Workflow
@@ -131,16 +131,19 @@ entry.py:
 directory = "./assets"
 binding = "ASSETS"
 ```
+
 - 배포 (Assets 포함)
 ```bash
 # assets/data/precomputed_game*_v2.json 등 정적 파일을 포함하여 배포
 npx wrangler publish  # 또는 npx wrangler deploy
 ```
+
 - KV 네임스페이스 생성 (관리자용)
 ```bash
 npx wrangler kv:namespace create "GLOBAL_STORE"
 # wrangler.toml에 바인딩 추가: [[kv_namespaces]] binding = "GLOBAL" id = "<namespace-id>"
 ```
+
 - precomputed JSON을 KV에 업로드 (관리자/오프라인 용도; 런타임은 KV 폴백 미사용)
 ```bash
 cd kv-upload
@@ -148,8 +151,6 @@ node upload-game-data.js  # 환경 변수/스크립트 설정: JSON_FILE_PATH, N
 npx wrangler kv key list --namespace-id="<NAMESPACE_ID>" --prefix="game1_"
 npx wrangler kv key get --namespace-id="<NAMESPACE_ID>" "game1_5"
 ```
-
----
 
 ## Features
 
@@ -234,11 +235,11 @@ CI / 도구
 ---
 
 ### v2.5 (이전)
-- precomputed(v2) 포맷 도입: [min_val, freq_list]
 - ASSETS 기반 precompute 우선 전략
+- precomputed(v2) 포맷 도입: [min_val, freq_list]
 - 오프라인 KV 업로드 도구(kv-upload)
 - 히스토그램 SVG 생성(make_hist_svg) 및 summarize 기능 제공
 <!-- AUTO-UPDATE:END -->
 <!-- AUTO-UPDATE:END -->
 
-<!-- LAST_PROCESSED_SHA: 447a93dc78ed45d22ecf9b05ed5bebf151c55dd7 -->
+<!-- LAST_PROCESSED_SHA: 2353042e1cb6c39932240c852167f08ac88e4c50 -->
