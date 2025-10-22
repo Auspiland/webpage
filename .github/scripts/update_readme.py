@@ -140,7 +140,6 @@ Analyze the diff and update **ALL FOUR SECTIONS** as needed:
 
 ### Dir Structure
 - Update file tree if files were added/removed/moved
-- Add descriptions for new files
 - Use tree format with comments (e.g., `├── file.py  # description`)
 - Comment only the important points briefly
 
@@ -193,7 +192,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--target-dir", required=True)
     ap.add_argument("--readme", required=True)
-    ap.add_argument("--llm-model", default=os.getenv("LLM_MODEL", "gpt-4o-mini"))
+    ap.add_argument("--llm-model", default=os.getenv("LLM_MODEL", "gpt-5-mini"))
     ap.add_argument("--section-start", required=True)
     ap.add_argument("--section-end", required=True)
     ap.add_argument("--last-sha-start", required=True)
