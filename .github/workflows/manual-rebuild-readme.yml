@@ -1,0 +1,113 @@
+name: Manual README Rebuild (Full Reconstruction)
+
+on:
+  workflow_dispatch:          # 수동 실행 전용
+    inputs:
+      llm_model:
+        description: 'LLM model to use for rebuild'
+        required: false
+        default: 'gpt-4o'
+        type: choice
+        options:
+          - gpt-4o
+          - gpt-4o-mini
+          - gpt-5-mini
+      confirm_rebuild:
+        description: 'Type "REBUILD" to confirm full README reconstruction'
+        required: true
+        type: string
+
+permissions:
+  contents: write             # README 자동 커밋을 위해 필요
+
+env:
+  TARGET_DIR: "."                                # 프로젝트 루트
+  README_PATH: "README.md"                       # 갱신 대상 파일
+  SECTION_START: "<!-- AUTO-UPDATE:START -->"
+  SECTION_END: "<!-- AUTO-UPDATE:END -->"
+  LAST_SHA_START: "<!-- LAST_PROCESSED_SHA:"
+  MAX_FILE_BYTES: "150000"                       # 전체 파일 수집을 위해 더 큰 값 사용
+
+jobs:
+  rebuild-readme:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_rebuild }}" != "REBUILD" ]; then
+            echo "Error: You must type 'REBUILD' to confirm"
+            echo "This action will completely reconstruct the README.md file"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # 전체 히스토리 가져오기
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openai==1.* gitpython==3.* tenacity==8.*
+
+      - name: Backup current README
+        run: |
+          cp README.md README.md.backup
+          echo "Backup created: README.md.backup"
+
+      - name: Run full README rebuild
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_MODEL: ${{ github.event.inputs.llm_model }}
+        run: |
+          echo "Starting full README rebuild with model: $LLM_MODEL"
+          python .github/scripts/rebuild_readme.py \
+            --target-dir "$TARGET_DIR" \
+            --readme "$README_PATH" \
+            --llm-model "$LLM_MODEL" \
+            --section-start "$SECTION_START" \
+            --section-end "$SECTION_END" \
+            --last-sha-start "$LAST_SHA_START" \
+            --max-file-bytes "$MAX_FILE_BYTES"
+
+      - name: Show diff
+        run: |
+          echo "=== README Changes ==="
+          git diff README.md || true
+
+      - name: Commit & Push changes
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git config user.name "readme-rebuild-bot"
+            git config user.email "readme-rebuild-bot@users.noreply.github.com"
+            git add README.md
+            git commit -m "docs(readme): full rebuild via LLM [manual] [skip ci]
+
+            - Triggered by: ${{ github.actor }}
+            - Model used: ${{ github.event.inputs.llm_model }}
+            - Complete reconstruction of auto-update sections"
+            git push
+            echo "README.md has been rebuilt and committed!"
+          else
+            echo "No changes detected in README.md"
+          fi
+
+      - name: Cleanup backup
+        if: success()
+        run: |
+          rm -f README.md.backup
+          echo "Backup removed after successful rebuild"
+
+      - name: Upload backup artifact (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: readme-backup-${{ github.run_id }}
+          path: README.md.backup
+          retention-days: 7

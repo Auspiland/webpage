@@ -4,7 +4,7 @@
 README 자동 업데이트 스크립트
 
 Git diff를 분석하여 LLM을 통해 README.md의 자동 업데이트 섹션을 갱신합니다.
-- .github/ 디렉토리 하위 파일들은 분석 대상에서 제외
+- .github/ 디렉토리 및 README.md 파일들은 분석 대상에서 제외
 - Dir Structure, Workflow, Features, Versions 섹션을 자동으로 업데이트
 - 마지막 처리된 commit SHA를 추적하여 중복 처리 방지
 """
@@ -64,8 +64,9 @@ def calc_changed_files(target_dir: str, base_sha: str, head_sha: str) -> List[st
     if base_sha == head_sha:
         return []
     diff_out = run(["git", "diff", "--name-only", f"{base_sha}..{head_sha}", "--", target_dir])
-    # .github 디렉토리 아래 파일들은 제외
-    files = [f for f in diff_out.splitlines() if f.strip() and not f.startswith('.github/')]
+    # .github 디렉토리 및 README.md는 제외 (이 파일들만 변경되면 LLM 호출 회피)
+    files = [f for f in diff_out.splitlines()
+             if f.strip() and not f.startswith('.github/') and not f.endswith('README.md')]
     return files
 
 def collect_diffs(files: List[str], base_sha: str, head_sha: str, max_bytes: int) -> str:
@@ -122,10 +123,10 @@ Analyze repository changes and update the README structure comprehensively.
 
 ## Repository Context
 - Project: Monte Carlo Simulation Web App (Cloudflare Workers + Python)
-- Target directory: {target_dir} (excluding .github/ directory)
+- Target directory: {target_dir} (excluding .github/ directory and README.md)
 - Base commit: {base_sha}
 - Head commit: {head_sha}
-- Note: Changes in .github/ (workflows, scripts) are intentionally excluded from analysis
+- Note: Changes in .github/ (workflows, scripts) and README.md are intentionally excluded from analysis
 
 ## Current README Structure
 The README must maintain these sections in order:
