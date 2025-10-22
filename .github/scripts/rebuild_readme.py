@@ -183,12 +183,23 @@ def llm_rebuild_readme(openai_key: str, model: str, prompt: str) -> str:
 # -----------------------------
 
 REBUILD_TEMPLATE = """You are a technical documentation expert for Cloudflare Workers projects.
-Your task is to create a comprehensive README.md from scratch by analyzing the entire codebase.
+Your task is to REFACTOR and IMPROVE the existing README.md by analyzing the current codebase.
 
 ## Project Information
 - Type: Monte Carlo Simulation Web App
 - Stack: Cloudflare Workers + Python Workers + JavaScript frontend
 - Current commit: {commit_sha}
+
+## Current README Content (Your Reference)
+```markdown
+{current_readme}
+```
+
+**IMPORTANT**: The current README above is your PRIMARY reference. Use it to:
+1. Understand the project structure and conventions
+2. Preserve accurate descriptions and technical details
+3. Maintain the existing style and formatting
+4. Keep correct version history and feature lists
 
 ## File Tree Structure
 ```
@@ -199,64 +210,73 @@ Your task is to create a comprehensive README.md from scratch by analyzing the e
 {file_contents}
 
 ## Your Task
-Create a COMPLETE README.md auto-update section with these four sections:
+Create an IMPROVED and REFACTORED README.md auto-update section with these four sections:
 
 ### 1. Dir Structure
-- Provide a detailed file tree with inline comments
-- Include descriptions for ALL important files and directories
-- Use tree format: `├── filename  # description`
-- Organize by logical sections (root, subdirectories)
-- Comment briefly but precisely on each file's purpose
+- **READ the current README's Dir Structure section carefully**
+- Verify file descriptions against actual code
+- Fix any outdated or incorrect descriptions
+- Add descriptions for new files (if any)
+- Remove descriptions for deleted files (if any)
+- Keep the same tree format and style
+- Make descriptions more concise and clear where needed
+- **DO NOT invent features or descriptions - only use what you can verify from the code**
 
 ### 2. Workflow
-- Document the complete request flow from client to server
-- Explain the simulation pipeline (data loading, computation, response)
-- Include API endpoint documentation
-- Show deployment process and key commands
-- Use diagrams/flowcharts where helpful (in text format)
+- **READ the current README's Workflow section carefully**
+- Verify the request flow against actual code in entry.py and compute.py
+- Update only if the actual implementation differs from the description
+- Keep the same flowchart style and format
+- Make explanations clearer and more concise
+- **DO NOT add fictional features - only document what exists in the code**
 
 ### 3. Features
-Structure this section with:
-- **핵심 기능** (5 numbered items covering):
-  1. Simulation capabilities
-  2. Game modes
-  3. UI/UX features
-  4. Visualization features
-  5. Optimization features
-
-- **기술적 특징**:
-  - Algorithms used (Monte Carlo, statistical methods)
-  - Performance metrics (response time, optimization techniques)
-  - Security features
-  - Architecture highlights (Assets binding, KV integration, CDN usage)
+- **READ the current README's Features section carefully**
+- Verify each feature claim against the actual code
+- Keep the same structure: 핵심 기능 (5 items) + 기술적 특징
+- Update descriptions to be more accurate and concise
+- Remove any exaggerated or unverified claims
+- **Only document features that actually exist in the codebase**
 
 ### 4. Versions
-- Create a comprehensive version history
-- Start from v1.0 and include all major versions
-- For each version include:
-  - Version number (semantic versioning)
-  - 주요 변경사항 (major changes)
-  - 최적화 (optimizations)
-  - 버그 수정 (bug fixes)
-  - 새 기능 (new features)
-- Most recent version should be at the top
+- **PRESERVE the existing version history EXACTLY as written**
+- DO NOT modify past version entries
+- DO NOT add new versions unless there are significant changes
+- If adding a new version, base it ONLY on actual code changes you can verify
+- Use the same formatting style as existing entries
+
+## Critical Rules - READ CAREFULLY
+
+1. **ACCURACY OVER CREATIVITY**: Do not invent features, optimizations, or technical details
+2. **VERIFY EVERYTHING**: Cross-check every claim against the actual code provided
+3. **PRESERVE CORRECT INFO**: If the current README accurately describes something, keep it
+4. **FIX ERRORS ONLY**: Only change descriptions that are demonstrably wrong or outdated
+5. **BE CONCISE**: Remove verbose or redundant explanations
+6. **NO HALLUCINATIONS**: If you're unsure about something, use the current README's description
 
 ## Output Requirements
 - Write in Korean
 - Output ONLY the markdown content for the auto-update section
 - Start with `## Dir Structure` and end with the last version entry
-- Be comprehensive and detailed - include function names, file paths, technical specifics
+- Be precise and technical - include function names, file paths, specific values
 - Use code blocks for directory trees, code examples, and bash commands
 - Maximum length: 1500 lines
-- Be precise and technical, not generic
+- **Maintain consistency with the existing README style**
 
-## Important Notes
-- This is a COMPLETE rebuild, not an incremental update
-- Analyze ALL files provided to understand the full architecture
-- Ensure all four sections are comprehensive and interconnected
-- Focus on accuracy and technical depth
+## Example of Good Refactoring
 
-Remember: Output ONLY the markdown content, starting with `## Dir Structure` and ending with the version history.
+**BEFORE (verbose)**:
+```
+- entry.py: 이 파일은 Cloudflare Workers의 메인 진입점으로서 모든 HTTP 요청을 받아서 처리하고 라우팅하며 CORS 헤더를 설정하고 에러 핸들링을 수행하는 매우 중요한 파일입니다.
+```
+
+**AFTER (concise)**:
+```
+- entry.py: Workers 진입점 (라우팅, CORS, 에러 핸들링)
+```
+
+Remember: Your goal is to REFACTOR (improve clarity, fix errors) NOT to REWRITE (invent new content).
+Output ONLY the markdown content, starting with `## Dir Structure` and ending with the version history.
 """
 
 def main():
@@ -304,21 +324,33 @@ def main():
 
     print(f"Collected {len(file_contents)} files totaling {sum(len(c.encode('utf-8')) for c in file_contents.values())} bytes")
 
+    # Read current README first
+    readme_txt = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
+
+    # Extract current auto-update section for reference
+    current_auto_section = ""
+    start_idx = readme_txt.find(args.section_start)
+    end_idx = readme_txt.find(args.section_end)
+    if start_idx != -1 and end_idx != -1:
+        current_auto_section = readme_txt[start_idx:end_idx + len(args.section_end)]
+    else:
+        current_auto_section = "No existing auto-update section found."
+
+    print(f"Current README auto-update section: {len(current_auto_section)} characters")
+
     # Format file contents for prompt
     formatted_contents = format_file_contents(file_contents)
 
-    # Build prompt
+    # Build prompt with current README
     prompt = REBUILD_TEMPLATE.format(
         commit_sha=current_sha,
+        current_readme=current_auto_section,
         file_tree=file_tree,
         file_contents=formatted_contents
     )
 
-    print("Calling LLM to rebuild README...")
+    print("Calling LLM to refactor README...")
     new_content = llm_rebuild_readme(openai_key, args.llm_model, prompt).strip()
-
-    # Read current README
-    readme_txt = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
 
     # Find and replace the auto-update section
     start_idx = readme_txt.find(args.section_start)

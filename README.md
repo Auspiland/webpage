@@ -240,6 +240,5 @@ CI / 도구
 - 오프라인 KV 업로드 도구(kv-upload)
 - 히스토그램 SVG 생성(make_hist_svg) 및 summarize 기능 제공
 <!-- AUTO-UPDATE:END -->
-<!-- AUTO-UPDATE:END -->
 
 <!-- LAST_PROCESSED_SHA: 2353042e1cb6c39932240c852167f08ac88e4c50 -->
