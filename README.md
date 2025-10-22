@@ -2,8 +2,9 @@
 Cloudflare Workers를 활용한 웹페이지 테스트 프로젝트입니다.
 
 ## Monte Carlo Simulation Web App
-가챠 게임의 확률 분포를 시뮬레이션하고 정규분포 피팅 결과를 시각화하는 Cloudflare Workers 기반 웹 앱입니다.
+뽑기 확률 분포를 시뮬레이션하고 정규분포 피팅 결과를 시각화하는 Cloudflare Workers 기반 웹 앱입니다.
 
+<!-- AUTO-UPDATE:START -->
 ## Dir Structure
 ```
 
@@ -144,3 +145,6 @@ run_simulation 실행
 * ASSETS 기반 precompute
 * v2 포맷 도입
 * KV 업로드 및 히스토그램 기능 추가
+<!-- AUTO-UPDATE:END -->
+
+<!-- LAST_PROCESSED_SHA: 2353042e1cb6c39932240c852167f08ac88e4c50 -->
