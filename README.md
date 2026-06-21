@@ -147,4 +147,4 @@ run_simulation 실행
 - 히스토그램 SVG 생성(make_hist_svg) 및 summarize 기능 제공
 <!-- AUTO-UPDATE:END -->
 
-<!-- LAST_PROCESSED_SHA: 11df6bc4e70979c639b58cb639d4bb9a6ed9d03b -->
+<!-- LAST_PROCESSED_SHA: 9262b9a1b8c7a1a591be321c1ca28d3752debde2 -->
